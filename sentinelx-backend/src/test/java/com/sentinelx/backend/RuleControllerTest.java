@@ -83,6 +83,8 @@ class RuleControllerTest {
     @Test
     @DisplayName("HTTP 200: Successfully update rule weight and parameters")
     void testUpdateRule() throws Exception {
+        Rule original = ruleRepository.findById("RULE_01").orElseThrow();
+
         RuleRequest updateRequest = RuleRequest.builder()
                 .name("High Velocity (5m) Updated")
                 .description("Updated velocity description")
@@ -91,11 +93,25 @@ class RuleControllerTest {
                 .isActive(true)
                 .build();
 
-        mockMvc.perform(put("/api/v1/rules/RULE_01")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(updateRequest)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.weight", is(45)))
-                .andExpect(jsonPath("$.name", is("High Velocity (5m) Updated")));
+        try {
+            mockMvc.perform(put("/api/v1/rules/RULE_01")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateRequest)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.weight", is(45)))
+                    .andExpect(jsonPath("$.name", is("High Velocity (5m) Updated")));
+        } finally {
+            RuleRequest restore = RuleRequest.builder()
+                    .name(original.getName())
+                    .description(original.getDescription())
+                    .conditionJson(original.getConditionJson())
+                    .weight(original.getWeight())
+                    .isActive(original.getIsActive())
+                    .build();
+
+            mockMvc.perform(put("/api/v1/rules/RULE_01")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(restore)));
+        }
     }
 }

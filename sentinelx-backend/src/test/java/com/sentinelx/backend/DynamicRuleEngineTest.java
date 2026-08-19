@@ -6,8 +6,10 @@ import com.sentinelx.backend.entity.Rule;
 import com.sentinelx.backend.entity.Transaction;
 import com.sentinelx.backend.entity.User;
 import com.sentinelx.backend.repository.RuleRepository;
-import com.sentinelx.backend.repository.TransactionRepository;
 import com.sentinelx.backend.repository.UserRepository;
+import com.sentinelx.backend.rule.EvaluationContext;
+import com.sentinelx.backend.rule.RuleResult;
+import com.sentinelx.backend.rule.impl.GeolocationHopRule;
 import com.sentinelx.backend.service.RiskService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -18,6 +20,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,9 +39,6 @@ class DynamicRuleEngineTest {
 
     @Autowired
     private UserRepository userRepository;
-
-    @Autowired
-    private TransactionRepository transactionRepository;
 
     @BeforeEach
     void setUp() {
@@ -111,40 +111,48 @@ class DynamicRuleEngineTest {
     }
 
     @Test
-    @DisplayName("Strategy Evaluation: GeolocationHopRule triggers when client IP shifts rapidly within time window")
+    @DisplayName("Strategy Evaluation: GeolocationHopRule triggers only when the client IP changes within the time window")
     void testGeolocationHopStrategy() {
-        String testUserId = "usr_geo_" + System.currentTimeMillis();
-        User user = userRepository.save(User.builder()
-                .id(testUserId)
-                .email("geo." + System.currentTimeMillis() + "@example.com")
-                .riskSegment("LOW")
-                .build());
+        Rule ruleConfig = Rule.builder()
+                .id("RULE_04")
+                .name("Geolocation Hop")
+                .conditionJson("{\"timeWindow\": 1800}")
+                .weight(60)
+                .build();
 
-        // 1. Insert previous transaction from IP A 5 minutes ago and flush to database
-        Transaction previousTxn = Transaction.builder()
-                .id("txn_geo_prev_" + System.currentTimeMillis())
-                .user(user)
-                .amount(new BigDecimal("20.00"))
-                .currency("USD")
-                .merchantId("mer_store")
+        User user = User.builder().id("usr_geo").riskSegment("LOW").build();
+
+        TransactionRequest hopRequest = TransactionRequest.builder()
+                .userId("usr_geo")
+                .ipAddress("203.0.113.99")
+                .build();
+
+        GeolocationHopRule rule = new GeolocationHopRule();
+
+        // Recent transaction (5 minutes ago) from a different IP -> triggers
+        Transaction recentTxn = Transaction.builder()
+                .id("txn_geo_prev")
                 .ipAddress("198.51.100.10")
-                .status("APPROVED")
                 .timestamp(OffsetDateTime.now().minusMinutes(5))
                 .build();
-        transactionRepository.saveAndFlush(previousTxn);
-
-        // 2. New transaction arrives from IP B (different country/network)
-        TransactionRequest hopRequest = TransactionRequest.builder()
-                .userId(testUserId)
-                .email(user.getEmail())
-                .amount(new BigDecimal("30.00"))
-                .currency("USD")
-                .merchantId("mer_store")
-                .ipAddress("203.0.113.99")
-                .deviceFingerprint("fp_alice_iphone15_sha256")
+        EvaluationContext recentContext = EvaluationContext.builder()
+                .recentTransactions(List.of(recentTxn))
                 .build();
 
-        DecisionResponse response = riskService.evaluateTransaction(hopRequest);
-        assertThat(response.getFiredRules()).anyMatch(r -> r.contains("RULE_04") || r.contains("Geolocation Hop"));
+        RuleResult triggered = rule.evaluate(hopRequest, user, null, ruleConfig, recentContext);
+        assertThat(triggered.triggered()).isTrue();
+
+        // Old transaction (2 hours ago) from a different IP -> does not trigger
+        Transaction oldTxn = Transaction.builder()
+                .id("txn_geo_old")
+                .ipAddress("198.51.100.10")
+                .timestamp(OffsetDateTime.now().minusHours(2))
+                .build();
+        EvaluationContext oldContext = EvaluationContext.builder()
+                .recentTransactions(List.of(oldTxn))
+                .build();
+
+        RuleResult notTriggered = rule.evaluate(hopRequest, user, null, ruleConfig, oldContext);
+        assertThat(notTriggered.triggered()).isFalse();
     }
 }

@@ -43,6 +43,5 @@ public class RuleRequest {
     /**
      * Active toggle switch for the rule.
      */
-    @Builder.Default
-    private Boolean isActive = true;
+    private Boolean isActive;
 }

@@ -55,7 +55,13 @@ public class GeolocationHopRule implements RiskRule {
 
         Transaction lastTxn = history.get(0);
 
-        if (lastTxn.getIpAddress() != null && !lastTxn.getIpAddress().equals(request.getIpAddress())) {
+        OffsetDateTime cutoff = OffsetDateTime.now().minusSeconds(timeWindowSeconds);
+        boolean withinWindow = lastTxn.getTimestamp() != null
+                && lastTxn.getTimestamp().isAfter(cutoff);
+
+        if (withinWindow
+                && lastTxn.getIpAddress() != null
+                && !lastTxn.getIpAddress().equals(request.getIpAddress())) {
             return RuleResult.triggered(
                     ruleConfig.getId(),
                     ruleConfig.getName(),
