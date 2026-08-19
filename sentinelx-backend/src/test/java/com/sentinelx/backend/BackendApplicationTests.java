@@ -10,7 +10,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Optional;
 
+import org.springframework.test.context.ActiveProfiles;
+
 @SpringBootTest
+@ActiveProfiles("test")
 class BackendApplicationTests {
 
     @Autowired
@@ -37,14 +40,14 @@ class BackendApplicationTests {
         User testUser = User.builder()
                 .id("usr_test_99")
                 .email("testrunner@example.com")
-                .riskSegment("VIP")
+                .riskSegment("HIGH")
                 .build();
                 
         userRepository.save(testUser);
         
         Optional<User> found = userRepository.findById("usr_test_99");
         assertThat(found).isPresent();
-        assertThat(found.get().getRiskSegment()).isEqualTo("VIP");
+        assertThat(found.get().getRiskSegment()).isEqualTo("HIGH");
         
         // Test CRUD: Delete user
         userRepository.delete(testUser);

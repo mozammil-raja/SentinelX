@@ -50,7 +50,7 @@ export default function Home() {
         </div>
 
         <div className="pt-6 text-xs text-slate-500 font-mono">
-          Phase 1: Environment & Boilerplates initialized • Backend (Spring Boot 3 / Postgres / Redis) + Frontend (Next.js 16 / Tailwind)
+          Phases 1–4 complete • Dynamic rule engine (Spring Boot 4 / Postgres) + Frontend (Next.js 16 / Tailwind)
         </div>
       </div>
     </div>
