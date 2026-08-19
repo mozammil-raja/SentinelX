@@ -24,7 +24,11 @@ public class HighValueTransactionRule implements RiskRule {
 
     public static final String RULE_ID = "RULE_03";
     private static final BigDecimal DEFAULT_THRESHOLD = new BigDecimal("10000");
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
+
+    public HighValueTransactionRule(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
+    }
 
     @Override
     public String getRuleId() {

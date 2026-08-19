@@ -6,6 +6,7 @@ import com.sentinelx.backend.dto.TransactionRequest;
 import com.sentinelx.backend.exception.GlobalExceptionHandler;
 import com.sentinelx.backend.repository.TransactionRepository;
 import com.sentinelx.backend.service.RiskService;
+import com.sentinelx.backend.service.VelocityService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,17 +38,29 @@ class PhaseThreeVerificationTest {
     @Autowired
     private TransactionRepository transactionRepository;
 
+    @Autowired
+    private com.sentinelx.backend.repository.DecisionRepository decisionRepository;
+
+    @Autowired
+    private com.sentinelx.backend.repository.ReviewQueueRepository reviewQueueRepository;
+
+    @Autowired
+    private VelocityService velocityService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
     private MockMvc mockMvc;
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
+        reviewQueueRepository.deleteAllInBatch();
+        decisionRepository.deleteAllInBatch();
+        transactionRepository.deleteAllInBatch();
+        velocityService.resetUserVelocity("usr_1001");
         TransactionController controller = new TransactionController(riskService, transactionRepository);
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
-        mapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         org.springframework.http.converter.json.MappingJackson2HttpMessageConverter converter =
-                new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(mapper);
+                new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(objectMapper);
 
         this.mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -79,7 +92,7 @@ class PhaseThreeVerificationTest {
     }
 
     @Test
-    @DisplayName("HTTP 403: Blocked transaction with blacklisted merchant returns 403 Forbidden")
+    @DisplayName("HTTP 200: Scored transaction with blacklisted merchant returns BLOCK decision payload")
     void testIngestBlockedTransactionHttp() throws Exception {
         TransactionRequest request = TransactionRequest.builder()
                 .userId("usr_1001")
@@ -94,7 +107,7 @@ class PhaseThreeVerificationTest {
         mockMvc.perform(post("/api/v1/transactions")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isForbidden())
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.decision", is("BLOCK")))
                 .andExpect(jsonPath("$.finalScore", greaterThanOrEqualTo(70)));
     }

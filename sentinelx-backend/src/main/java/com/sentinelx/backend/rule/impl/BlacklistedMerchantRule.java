@@ -25,7 +25,11 @@ public class BlacklistedMerchantRule implements RiskRule {
 
     public static final String RULE_ID = "RULE_05";
     private static final List<String> DEFAULT_MERCHANTS = List.of("mer_black_1", "mer_black_2");
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
+
+    public BlacklistedMerchantRule(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
+    }
 
     @Override
     public String getRuleId() {

@@ -26,5 +26,5 @@ Open [http://localhost:3000](http://localhost:3000) to view the landing page.
 - Tailwind CSS v4
 - `lucide-react` for icons
 
-The backend service lives in `../sentinelx-backend` (Spring Boot 4 / Java 21 / PostgreSQL).
+The backend service lives in `../sentinelx-backend` (Spring Boot 3.x / Java 21 / PostgreSQL / Redis).
 

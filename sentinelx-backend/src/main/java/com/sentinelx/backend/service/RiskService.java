@@ -30,6 +30,7 @@ public class RiskService {
     private final DecisionRepository decisionRepository;
     private final ReviewQueueRepository reviewQueueRepository;
     private final RuleEngine ruleEngine;
+    private final VelocityService velocityService;
     private final ObjectMapper objectMapper;
 
     /**
@@ -40,14 +41,17 @@ public class RiskService {
                        TransactionRepository transactionRepository,
                        DecisionRepository decisionRepository,
                        ReviewQueueRepository reviewQueueRepository,
-                       RuleEngine ruleEngine) {
+                       RuleEngine ruleEngine,
+                       VelocityService velocityService,
+                       ObjectMapper objectMapper) {
         this.userRepository = userRepository;
         this.deviceRepository = deviceRepository;
         this.transactionRepository = transactionRepository;
         this.decisionRepository = decisionRepository;
         this.reviewQueueRepository = reviewQueueRepository;
         this.ruleEngine = ruleEngine;
-        this.objectMapper = new ObjectMapper();
+        this.velocityService = velocityService;
+        this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
     }
 
     /**
@@ -93,9 +97,13 @@ public class RiskService {
             }
         }
 
-        // 3. Pre-fetch shared evaluation context (historical user transactions)
-        List<Transaction> userHistory = transactionRepository.findByUserIdOrderByTimestampDesc(user.getId());
+        // 3. Pre-fetch shared evaluation context (bounded historical user transactions)
+        Transaction lastTransaction = transactionRepository.findTop1ByUserIdOrderByTimestampDesc(user.getId()).orElse(null);
+        OffsetDateTime oneHourCutoff = OffsetDateTime.now(java.time.ZoneOffset.UTC).minusHours(1);
+        List<Transaction> userHistory = transactionRepository.findRecentByUserIdSince(user.getId(), oneHourCutoff);
+        
         EvaluationContext context = EvaluationContext.builder()
+                .lastTransaction(lastTransaction)
                 .recentTransactions(userHistory)
                 .build();
 
@@ -165,7 +173,12 @@ public class RiskService {
             reviewQueueRepository.save(queueItem);
         }
 
-        // 8. Return synchronous API response
+        // 8. Asynchronously / In-Memory update Redis multi-dimensional velocity metrics
+        if (velocityService != null) {
+            velocityService.recordTransactionMetrics(request, transaction.getId());
+        }
+
+        // 9. Return synchronous API response
         return DecisionResponse.builder()
                 .decisionId(decision.getId())
                 .transactionId(transaction.getId())

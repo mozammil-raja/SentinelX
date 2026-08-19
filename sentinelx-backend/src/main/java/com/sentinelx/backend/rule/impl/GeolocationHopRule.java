@@ -25,7 +25,15 @@ import java.util.List;
 public class GeolocationHopRule implements RiskRule {
 
     public static final String RULE_ID = "RULE_04";
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
+
+    public GeolocationHopRule() {
+        this.objectMapper = new ObjectMapper();
+    }
+
+    public GeolocationHopRule(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
+    }
 
     @Override
     public String getRuleId() {
@@ -47,13 +55,13 @@ public class GeolocationHopRule implements RiskRule {
             // Fallback to default time window
         }
 
-        List<Transaction> history = context.getRecentTransactions();
+        Transaction lastTxn = (context != null && context.getLastTransaction() != null)
+                ? context.getLastTransaction()
+                : ((context != null && !context.getRecentTransactions().isEmpty()) ? context.getRecentTransactions().get(0) : null);
 
-        if (history.isEmpty()) {
+        if (lastTxn == null) {
             return RuleResult.notTriggered(ruleConfig.getId(), ruleConfig.getName());
         }
-
-        Transaction lastTxn = history.get(0);
 
         OffsetDateTime cutoff = OffsetDateTime.now().minusSeconds(timeWindowSeconds);
         boolean withinWindow = lastTxn.getTimestamp() != null

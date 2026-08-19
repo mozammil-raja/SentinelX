@@ -5,6 +5,7 @@ import com.sentinelx.backend.dto.TransactionRequest;
 import com.sentinelx.backend.entity.User;
 import com.sentinelx.backend.repository.UserRepository;
 import com.sentinelx.backend.service.RiskService;
+import com.sentinelx.backend.service.VelocityService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,8 +30,25 @@ class RiskServiceTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private com.sentinelx.backend.repository.TransactionRepository transactionRepository;
+
+    @Autowired
+    private com.sentinelx.backend.repository.DecisionRepository decisionRepository;
+
+    @Autowired
+    private com.sentinelx.backend.repository.ReviewQueueRepository reviewQueueRepository;
+
+    @Autowired
+    private VelocityService velocityService;
+
     @BeforeEach
     void setUp() {
+        reviewQueueRepository.deleteAllInBatch();
+        decisionRepository.deleteAllInBatch();
+        transactionRepository.deleteAllInBatch();
+        velocityService.resetUserVelocity("usr_1001");
+
         if (!userRepository.existsById("usr_1001")) {
             userRepository.save(User.builder().id("usr_1001").email("alice@example.com").riskSegment("LOW").build());
         }

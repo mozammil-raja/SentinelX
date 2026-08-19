@@ -22,9 +22,11 @@ import java.util.List;
 public class RuleController {
 
     private final RuleRepository ruleRepository;
+    private final com.sentinelx.backend.rule.RuleEngine ruleEngine;
 
-    public RuleController(RuleRepository ruleRepository) {
+    public RuleController(RuleRepository ruleRepository, com.sentinelx.backend.rule.RuleEngine ruleEngine) {
         this.ruleRepository = ruleRepository;
+        this.ruleEngine = ruleEngine;
     }
 
     /**
@@ -63,6 +65,9 @@ public class RuleController {
                 .orElseThrow(() -> new ResourceNotFoundException("Rule not found with ID: " + id));
         rule.setIsActive(!Boolean.TRUE.equals(rule.getIsActive()));
         Rule saved = ruleRepository.save(rule);
+        if (ruleEngine != null) {
+            ruleEngine.refreshRules();
+        }
         return ResponseEntity.ok(saved);
     }
 
@@ -87,6 +92,9 @@ public class RuleController {
         }
 
         Rule updated = ruleRepository.save(rule);
+        if (ruleEngine != null) {
+            ruleEngine.refreshRules();
+        }
         return ResponseEntity.ok(updated);
     }
 

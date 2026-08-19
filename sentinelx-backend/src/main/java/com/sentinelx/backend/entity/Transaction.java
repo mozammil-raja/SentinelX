@@ -30,9 +30,8 @@ public class Transaction {
 
     /**
      * Reference to the account holder initiating the transaction.
-     * Uses lazy fetching to prevent eager joining during velocity queries.
      */
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id")
     private User user;
 
@@ -70,7 +69,7 @@ public class Transaction {
     /**
      * Optional device entity associated with the transaction session.
      */
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "device_id")
     private Device device;
 

@@ -19,8 +19,13 @@ import java.util.List;
 public class EvaluationContext {
 
     /**
-     * Chronologically descending list of historical transactions for the user.
+     * Chronologically descending list of recent historical transactions for the user within a bounded window.
      */
     @Builder.Default
     private final List<Transaction> recentTransactions = Collections.emptyList();
+
+    /**
+     * The single most recent historical transaction executed by the user (if any), for O(1) state checks.
+     */
+    private final Transaction lastTransaction;
 }

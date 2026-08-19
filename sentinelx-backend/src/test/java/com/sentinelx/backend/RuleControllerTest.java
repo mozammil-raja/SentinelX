@@ -31,12 +31,15 @@ class RuleControllerTest {
     @Autowired
     private RuleRepository ruleRepository;
 
+    @Autowired
+    private com.sentinelx.backend.rule.RuleEngine ruleEngine;
+
     private MockMvc mockMvc;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        RuleController controller = new RuleController(ruleRepository);
+        RuleController controller = new RuleController(ruleRepository, ruleEngine);
         MappingJackson2HttpMessageConverter converter = new MappingJackson2HttpMessageConverter(objectMapper);
 
         this.mockMvc = MockMvcBuilders.standaloneSetup(controller)

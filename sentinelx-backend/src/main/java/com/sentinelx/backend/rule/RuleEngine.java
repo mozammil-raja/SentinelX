@@ -24,6 +24,7 @@ public class RuleEngine {
 
     private final RuleRepository ruleRepository;
     private final Map<String, RiskRule> strategyMap = new HashMap<>();
+    private volatile List<Rule> cachedActiveRules = new ArrayList<>();
 
     /**
      * Dependency injection constructor discovering all available RiskRule strategies.
@@ -36,6 +37,33 @@ public class RuleEngine {
         for (RiskRule strategy : strategies) {
             this.strategyMap.put(strategy.getRuleId(), strategy);
         }
+        refreshRules();
+    }
+
+    /**
+     * Refreshes the in-memory active rules cache from PostgreSQL.
+     * Invoked on startup and whenever rules are created, updated, or toggled.
+     */
+    public synchronized void refreshRules() {
+        if (ruleRepository != null) {
+            try {
+                this.cachedActiveRules = ruleRepository.findByIsActiveTrue();
+            } catch (Exception ignored) {
+                // Allows instantiation prior to schema initialization in isolated test fixtures
+            }
+        }
+    }
+
+    /**
+     * Retrieves the currently active cached rules.
+     *
+     * @return List of active Rule entities
+     */
+    public List<Rule> getActiveRules() {
+        if (cachedActiveRules == null || cachedActiveRules.isEmpty()) {
+            refreshRules();
+        }
+        return cachedActiveRules;
     }
 
     /**
@@ -67,8 +95,8 @@ public class RuleEngine {
             firedExplanations.add(tierResult.reason());
         }
 
-        // 2. Fetch active dynamic rules from PostgreSQL
-        List<Rule> activeRules = ruleRepository.findByIsActiveTrue();
+        // 2. Fetch active dynamic rules from in-memory cache
+        List<Rule> activeRules = getActiveRules();
 
         // 3. Evaluate each active rule using its corresponding strategy handler
         for (Rule ruleConfig : activeRules) {

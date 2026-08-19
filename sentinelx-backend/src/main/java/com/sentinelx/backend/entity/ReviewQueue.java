@@ -1,5 +1,6 @@
 package com.sentinelx.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.OffsetDateTime;
@@ -17,6 +18,7 @@ import java.time.OffsetDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class ReviewQueue {
 
     /**
@@ -29,14 +31,14 @@ public class ReviewQueue {
     /**
      * One-to-one relationship with the transaction under investigation.
      */
-    @OneToOne(fetch = FetchType.LAZY)
+    @OneToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "transaction_id", unique = true)
     private Transaction transaction;
 
     /**
      * The initial algorithmic decision that routed this transaction into the review queue.
      */
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "decision_id")
     private Decision decision;
 

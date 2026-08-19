@@ -9,4 +9,19 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface ReviewQueueRepository extends JpaRepository<ReviewQueue, Long> {
+    /**
+     * Retrieves all review queue items matching a specific lifecycle status (PENDING, APPROVED, REJECTED),
+     * ordered newest first.
+     *
+     * @param status Status filter
+     * @return List of review queue items
+     */
+    java.util.List<ReviewQueue> findByStatusOrderByCreatedAtDesc(String status);
+
+    /**
+     * Retrieves all review queue items ordered newest first.
+     *
+     * @return List of all review items
+     */
+    java.util.List<ReviewQueue> findAllByOrderByCreatedAtDesc();
 }

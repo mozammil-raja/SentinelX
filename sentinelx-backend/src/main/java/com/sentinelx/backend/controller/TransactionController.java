@@ -41,8 +41,7 @@ public class TransactionController {
     @PostMapping
     public ResponseEntity<DecisionResponse> ingestTransaction(@Valid @RequestBody TransactionRequest request) {
         DecisionResponse response = riskService.evaluateTransaction(request);
-        HttpStatus status = "BLOCK".equals(response.getDecision()) ? HttpStatus.FORBIDDEN : HttpStatus.OK;
-        return new ResponseEntity<>(response, status);
+        return ResponseEntity.ok(response);
     }
 
     /**

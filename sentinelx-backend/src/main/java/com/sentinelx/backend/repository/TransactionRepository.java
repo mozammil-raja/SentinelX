@@ -25,6 +25,28 @@ public interface TransactionRepository extends JpaRepository<Transaction, String
     List<Transaction> findByUserIdOrderByTimestampDesc(@org.springframework.data.repository.query.Param("userId") String userId);
 
     /**
+     * Retrieves the single most recent transaction executed by a user for O(1) previous state checks.
+     *
+     * @param userId Unique identifier of the user
+     * @return Optional containing the most recent transaction if one exists
+     */
+    @org.springframework.data.jpa.repository.Query("SELECT t FROM Transaction t WHERE t.user.id = :userId ORDER BY t.timestamp DESC LIMIT 1")
+    java.util.Optional<Transaction> findTop1ByUserIdOrderByTimestampDesc(@org.springframework.data.repository.query.Param("userId") String userId);
+
+    /**
+     * Retrieves transactions executed by a user since a specific timestamp cutoff (e.g. within sliding window).
+     * Prevents unbounded O(N) database scans.
+     *
+     * @param userId Unique identifier of the user
+     * @param cutoff Timestamp cutoff boundary
+     * @return List of matching transactions ordered descending by timestamp
+     */
+    @org.springframework.data.jpa.repository.Query("SELECT t FROM Transaction t WHERE t.user.id = :userId AND t.timestamp >= :cutoff ORDER BY t.timestamp DESC")
+    List<Transaction> findRecentByUserIdSince(
+            @org.springframework.data.repository.query.Param("userId") String userId,
+            @org.springframework.data.repository.query.Param("cutoff") java.time.OffsetDateTime cutoff);
+
+    /**
      * Retrieves transactions ordered from newest to oldest with pagination support.
      * Eagerly fetches user and device relations to prevent Jackson serialization proxy errors.
      *

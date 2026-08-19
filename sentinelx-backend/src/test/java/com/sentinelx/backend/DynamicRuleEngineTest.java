@@ -11,6 +11,7 @@ import com.sentinelx.backend.rule.EvaluationContext;
 import com.sentinelx.backend.rule.RuleResult;
 import com.sentinelx.backend.rule.impl.GeolocationHopRule;
 import com.sentinelx.backend.service.RiskService;
+import com.sentinelx.backend.service.VelocityService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,8 +41,29 @@ class DynamicRuleEngineTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private com.sentinelx.backend.repository.TransactionRepository transactionRepository;
+
+    @Autowired
+    private com.sentinelx.backend.repository.DecisionRepository decisionRepository;
+
+    @Autowired
+    private com.sentinelx.backend.repository.ReviewQueueRepository reviewQueueRepository;
+
+    @Autowired
+    private VelocityService velocityService;
+
+    @Autowired
+    private com.sentinelx.backend.rule.RuleEngine ruleEngine;
+
     @BeforeEach
     void setUp() {
+        reviewQueueRepository.deleteAllInBatch();
+        decisionRepository.deleteAllInBatch();
+        transactionRepository.deleteAllInBatch();
+        velocityService.resetUserVelocity("usr_1001");
+        ruleEngine.refreshRules();
+
         if (!userRepository.existsById("usr_1001")) {
             userRepository.save(User.builder().id("usr_1001").email("alice@example.com").riskSegment("LOW").build());
         }
@@ -69,6 +91,7 @@ class DynamicRuleEngineTest {
         Rule blackListRule = ruleRepository.findById("RULE_05").orElseThrow();
         blackListRule.setIsActive(false);
         ruleRepository.save(blackListRule);
+        ruleEngine.refreshRules();
 
         // 3. Re-evaluate identical transaction -> should now ALLOW without penalty
         DecisionResponse toggledResponse = riskService.evaluateTransaction(request);
@@ -79,6 +102,7 @@ class DynamicRuleEngineTest {
         // 4. Clean up: Re-activate rule
         blackListRule.setIsActive(true);
         ruleRepository.save(blackListRule);
+        ruleEngine.refreshRules();
     }
 
     @Test
@@ -90,6 +114,7 @@ class DynamicRuleEngineTest {
         // 1. Temporarily increase weight to 85 (causes immediate BLOCK for amount > 10,000)
         highValueRule.setWeight(85);
         ruleRepository.save(highValueRule);
+        ruleEngine.refreshRules();
 
         TransactionRequest request = TransactionRequest.builder()
                 .userId("usr_1001")
@@ -108,6 +133,7 @@ class DynamicRuleEngineTest {
         // 2. Restore original weight
         highValueRule.setWeight(originalWeight);
         ruleRepository.save(highValueRule);
+        ruleEngine.refreshRules();
     }
 
     @Test
