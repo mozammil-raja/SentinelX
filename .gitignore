@@ -1,0 +1,39 @@
+# Databases / Local Docker volumes
+postgres-data/
+redis-data/
+*.rdb
+
+# Java / Maven
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+.mvn/wrapper/maven-wrapper.jar
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+build/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Environment files
+.env
+.env*.local
+*.env
+
+# IDE / OS / Planning
+.plan/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
