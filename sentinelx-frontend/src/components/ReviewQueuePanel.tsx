@@ -3,13 +3,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api, ReviewQueueItem } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { ClipboardCheck, XCircle, UserCheck, RefreshCw } from 'lucide-react';
+import {
+  ClipboardCheck,
+  UserCheck,
+  XCircle,
+  RefreshCw,
+  Bot,
+} from 'lucide-react';
 
 export function ReviewQueuePanel() {
-  const { user, isAuthenticated, openAuthModal } = useAuth();
   const [items, setItems] = useState<ReviewQueueItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [resolvingId, setResolvingId] = useState<number | null>(null);
+  const { user, isAuthenticated, openAuthModal } = useAuth();
 
   const fetchQueue = useCallback(async () => {
     setLoading(true);
@@ -17,7 +23,7 @@ export function ReviewQueuePanel() {
       const data = await api.reviews.getPending();
       setItems(data);
     } catch (err) {
-      console.error('Failed to load review queue:', err);
+      console.error('Failed to fetch review queue:', err);
     } finally {
       setLoading(false);
     }
@@ -26,17 +32,16 @@ export function ReviewQueuePanel() {
   useEffect(() => {
     let ignore = false;
     async function load() {
+      setLoading(true);
       try {
         const data = await api.reviews.getPending();
         if (!ignore) {
           setItems(data);
-          setLoading(false);
         }
       } catch (err) {
-        if (!ignore) {
-          console.error('Failed to load review queue:', err);
-          setLoading(false);
-        }
+        if (!ignore) console.error('Failed to fetch review queue:', err);
+      } finally {
+        if (!ignore) setLoading(false);
       }
     }
     load();
@@ -53,14 +58,10 @@ export function ReviewQueuePanel() {
 
     setResolvingId(id);
     try {
-      await api.reviews.resolve(
-        id,
-        status,
-        user?.email || 'analyst@sentinelx.io',
-        status === 'APPROVED' ? 'Verified by fraud analyst — device trusted' : 'Suspicious activity confirmed'
-      );
-      // Remove resolved item from pending list
-      setItems((prev) => prev.filter((item) => item.id !== id));
+      const reviewerId = user?.email || 'analyst@sentinelx.io';
+      const notes = status === 'APPROVED' ? 'Cleared manual review by analyst.' : 'Confirmed fraudulent pattern.';
+      await api.reviews.resolve(id, status, reviewerId, notes);
+      setItems((prev) => prev.filter((i) => i.id !== id));
     } catch (err) {
       console.error('Failed to resolve review item:', err);
     } finally {
@@ -80,7 +81,7 @@ export function ReviewQueuePanel() {
               Analyst Review Queue
               <span className="text-xs font-normal text-slate-400">({items.length} pending)</span>
             </h2>
-            <p className="text-xs text-slate-400">Human-in-the-loop inspection for transactions scoring 30–69</p>
+            <p className="text-xs text-slate-400">Human-in-the-loop inspection with GenAI Risk Copilot for transactions scoring 30–69</p>
           </div>
         </div>
 
@@ -99,7 +100,7 @@ export function ReviewQueuePanel() {
           <span>Queue is empty. No transactions currently pending manual review.</span>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
           {items.map((item) => {
             const isResolving = resolvingId === item.id;
 
@@ -108,12 +109,12 @@ export function ReviewQueuePanel() {
                 key={item.id}
                 className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 flex flex-col justify-between space-y-3"
               >
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="font-mono text-xs font-bold text-amber-400 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-800/50">
                       Case #{item.id}
                     </span>
-                    <span className="text-xs text-slate-400 font-mono">Score: {item.initialScore}/100</span>
+                    <span className="text-xs text-slate-400 font-mono">Initial Score: {item.initialScore}/100</span>
                   </div>
 
                   <div className="space-y-1 text-xs">
@@ -134,6 +135,19 @@ export function ReviewQueuePanel() {
                       <span className="font-mono text-slate-400 text-[11px] truncate max-w-[160px]">{item.transactionId}</span>
                     </div>
                   </div>
+
+                  {/* GenAI Risk Copilot Analysis Block */}
+                  {item.aiAnalysis && (
+                    <div className="p-2.5 rounded-lg bg-purple-950/40 border border-purple-800/50 space-y-1 text-[11px]">
+                      <div className="flex items-center gap-1.5 text-purple-300 font-semibold">
+                        <Bot className="w-3.5 h-3.5 text-purple-400" />
+                        <span>AI Risk Copilot Reasoning</span>
+                      </div>
+                      <p className="text-slate-300 whitespace-pre-line leading-relaxed font-sans text-[11px]">
+                        {item.aiAnalysis}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-3 border-t border-slate-800 flex items-center gap-2">
@@ -152,7 +166,7 @@ export function ReviewQueuePanel() {
                     className="flex-1 py-1.5 px-3 rounded-md bg-red-950/80 hover:bg-red-900 border border-red-700/50 text-xs font-semibold text-red-300 flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
                   >
                     <XCircle className="w-3.5 h-3.5" />
-                    <span>Reject</span>
+                    <span>Reject Fraud</span>
                   </button>
                 </div>
               </div>

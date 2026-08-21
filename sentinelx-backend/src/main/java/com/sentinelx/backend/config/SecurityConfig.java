@@ -43,12 +43,13 @@ public class SecurityConfig {
                         // Preflight OPTIONS requests always permitted
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // Public Ingestion & Telemetry Endpoints (Payment Gateways & Real-Time Dashboards)
+                        // Public Ingestion, Telemetry & OpenAPI Documentation
                         .requestMatchers(HttpMethod.POST, "/api/v1/transactions").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/decisions/stream").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/velocity/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/transactions/**").permitAll()
                         .requestMatchers("/api/v1/backtest/**").permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
                         // Read-Only Rule & Queue inquiries permitted for live monitoring
                         .requestMatchers(HttpMethod.GET, "/api/v1/rules/**").permitAll()

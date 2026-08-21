@@ -2,7 +2,17 @@
 
 import { useState, useCallback } from 'react';
 import { api, TransactionRequest, DecisionResponse } from '@/lib/api';
-import { Send, Zap, Sparkles, CheckCircle2, AlertTriangle, XCircle, RefreshCw } from 'lucide-react';
+import {
+  Send,
+  Zap,
+  Sparkles,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  RefreshCw,
+  KeyRound,
+  RotateCw,
+} from 'lucide-react';
 
 interface Preset {
   name: string;
@@ -99,7 +109,7 @@ const PRESETS: Preset[] = [
     request: {
       userId: 'usr_1001',
       email: 'alice@example.com',
-      amount: 120.00,
+      amount: 60.00,
       currency: 'USD',
       merchantId: 'mer_safe_store',
       cardBin: '411111',
@@ -110,22 +120,22 @@ const PRESETS: Preset[] = [
     },
   },
   {
-    name: 'Sanctioned Merchant',
+    name: 'Blacklisted Merchant',
     badge: 'Expected: BLOCK (+80 pts)',
     badgeColor: 'bg-red-950/80 text-red-400 border-red-700/50',
-    description: 'Blacklisted merchant (mer_dark_market / high risk)',
+    description: 'Routing payment to flagged merchant "mer_black_1"',
     expectedVerdict: 'BLOCK',
     request: {
-      userId: 'usr_1003',
-      email: 'charlie@example.com',
-      amount: 250.00,
+      userId: 'usr_1001',
+      email: 'alice@example.com',
+      amount: 80.00,
       currency: 'USD',
-      merchantId: 'mer_dark_market',
-      cardBin: '400000',
-      ipAddress: '198.51.100.99',
-      deviceFingerprint: 'fp_charlie_phone',
-      os: 'Android',
-      browser: 'Firefox',
+      merchantId: 'mer_black_1',
+      cardBin: '411111',
+      ipAddress: '198.51.100.10',
+      deviceFingerprint: 'fp_alice_iphone15_sha256',
+      os: 'iOS',
+      browser: 'Safari',
     },
   },
   {
@@ -157,18 +167,32 @@ export function TransactionSimulator() {
   const [lastResult, setLastResult] = useState<DecisionResponse | null>(null);
   const [activePreset, setActivePreset] = useState<string | null>(null);
 
-  const handleSendSingle = useCallback(async (preset: Preset) => {
-    setLoading(true);
-    setActivePreset(preset.name);
-    try {
-      const res = await api.transactions.evaluate(preset.request);
-      setLastResult(res);
-    } catch (err: unknown) {
-      console.error('Simulation error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Idempotency Controls
+  const [enableIdempotency, setEnableIdempotency] = useState(false);
+  const [idempotencyKey, setIdempotencyKey] = useState('idemp_demo_001');
+
+  const regenerateIdempotencyKey = () => {
+    setIdempotencyKey(`idemp_${Math.random().toString(36).substring(2, 8)}`);
+  };
+
+  const handleSendSingle = useCallback(
+    async (preset: Preset) => {
+      setLoading(true);
+      setActivePreset(preset.name);
+      try {
+        const res = await api.transactions.evaluate(
+          preset.request,
+          enableIdempotency ? idempotencyKey : undefined
+        );
+        setLastResult(res);
+      } catch (err: unknown) {
+        console.error('Simulation error:', err);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [enableIdempotency, idempotencyKey]
+  );
 
   const handleRunBurst = useCallback(async () => {
     setBursting(true);
@@ -201,22 +225,53 @@ export function TransactionSimulator() {
 
   return (
     <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-5 space-y-4 backdrop-blur-sm">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <div className="p-2 rounded-lg bg-indigo-950/80 border border-indigo-700/50 text-indigo-400">
             <Sparkles className="w-5 h-5" />
           </div>
           <div>
             <h2 className="text-lg font-bold text-slate-100">Live Transaction Simulator</h2>
-            <p className="text-xs text-slate-400">One-click fraud scenarios for interview demonstrations</p>
+            <p className="text-xs text-slate-400">One-click fraud scenarios and idempotency replay</p>
           </div>
         </div>
-        {lastResult && (
-          <div className="hidden sm:flex items-center gap-2 text-xs font-mono px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700">
-            <span className="text-slate-400">Last Latency:</span>
-            <span className="text-cyan-400 font-bold">{lastResult.evaluationTimeMs} ms</span>
-          </div>
-        )}
+
+        {/* Idempotency Key Bar */}
+        <div className="flex items-center gap-2 bg-slate-950/80 border border-slate-800 rounded-lg p-1.5 text-xs">
+          <button
+            type="button"
+            onClick={() => setEnableIdempotency(!enableIdempotency)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded font-semibold text-[11px] transition-colors ${
+              enableIdempotency
+                ? 'bg-purple-950 text-purple-300 border border-purple-800/60'
+                : 'bg-slate-800 text-slate-400'
+            }`}
+          >
+            <KeyRound className="w-3.5 h-3.5" />
+            <span>Idempotency {enableIdempotency ? 'ON' : 'OFF'}</span>
+          </button>
+
+          {enableIdempotency && (
+            <div className="flex items-center gap-1.5 font-mono text-[11px] pl-1 text-slate-300">
+              <span className="text-slate-400">{idempotencyKey}</span>
+              <button
+                type="button"
+                onClick={regenerateIdempotencyKey}
+                className="p-1 text-slate-400 hover:text-slate-200 transition-colors"
+                title="Generate new idempotency key"
+              >
+                <RotateCw className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+
+          {lastResult && (
+            <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800/60 border border-slate-700/50 ml-1">
+              <span className="text-slate-400">Latency:</span>
+              <span className="text-cyan-400 font-bold">{lastResult.evaluationTimeMs}ms</span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

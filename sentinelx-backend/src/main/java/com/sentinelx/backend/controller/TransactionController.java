@@ -36,11 +36,14 @@ public class TransactionController {
      * Primary synchronous transaction ingestion and real-time fraud scoring endpoint.
      *
      * @param request Validated transaction request payload
+     * @param idempotencyKey Optional client-supplied deduplication token header
      * @return Synchronous decision response with risk score, decision verdict, and latency
      */
     @PostMapping
-    public ResponseEntity<DecisionResponse> ingestTransaction(@Valid @RequestBody TransactionRequest request) {
-        DecisionResponse response = riskService.evaluateTransaction(request);
+    public ResponseEntity<DecisionResponse> ingestTransaction(
+            @Valid @RequestBody TransactionRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        DecisionResponse response = riskService.evaluateTransaction(request, idempotencyKey);
         return ResponseEntity.ok(response);
     }
 

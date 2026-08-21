@@ -68,6 +68,7 @@ export interface ReviewQueueItem {
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   reviewerId?: string;
   reviewerNotes?: string;
+  aiAnalysis?: string;
   reviewedAt?: string;
   createdAt: string;
 }
@@ -178,9 +179,10 @@ export interface BacktestRequest {
 export const api = {
   // Transaction Ingestion & Inquiries
   transactions: {
-    evaluate: (payload: TransactionRequest) =>
+    evaluate: (payload: TransactionRequest, idempotencyKey?: string) =>
       fetchJson<DecisionResponse>('/api/v1/transactions', {
         method: 'POST',
+        headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
         body: JSON.stringify(payload),
       }),
     getRecent: (page = 0, size = 50) =>

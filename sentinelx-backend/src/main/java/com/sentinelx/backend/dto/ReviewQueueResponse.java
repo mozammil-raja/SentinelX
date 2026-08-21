@@ -29,6 +29,7 @@ public class ReviewQueueResponse {
     private String status;
     private String reviewerId;
     private String reviewerNotes;
+    private String aiAnalysis;
     private OffsetDateTime reviewedAt;
     private OffsetDateTime createdAt;
 
@@ -48,6 +49,7 @@ public class ReviewQueueResponse {
                 .status(reviewQueue.getStatus())
                 .reviewerId(reviewQueue.getReviewerId())
                 .reviewerNotes(reviewQueue.getReviewerNotes())
+                .aiAnalysis(reviewQueue.getAiAnalysis())
                 .reviewedAt(reviewQueue.getReviewedAt())
                 .createdAt(reviewQueue.getCreatedAt());
 

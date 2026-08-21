@@ -70,6 +70,12 @@ public class ReviewQueue {
     private OffsetDateTime reviewedAt;
 
     /**
+     * GenAI / AI Risk Copilot synthesis and recommendations for the human analyst.
+     */
+    @Column(name = "ai_analysis", columnDefinition = "TEXT")
+    private String aiAnalysis;
+
+    /**
      * UTC timestamp when the review item was enqueued.
      */
     @CreationTimestamp
