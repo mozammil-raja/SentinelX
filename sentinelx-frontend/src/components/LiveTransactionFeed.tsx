@@ -149,7 +149,7 @@ export function LiveTransactionFeed({ decisions, status, lastPing, onClear }: Pr
               </tr>
             ) : (
               decisions.map((d, index) => {
-                const rowKey = d.decisionId || `${d.transactionId}-${index}`;
+                const rowKey = `${d.decisionId || d.transactionId || 'row'}-${index}`;
                 const isExpanded = expandedId === rowKey;
 
                 const verdictClass =

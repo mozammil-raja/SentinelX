@@ -33,7 +33,20 @@ export function useDecisionStream() {
     es.addEventListener('DECISION', (event) => {
       try {
         const payload: DecisionResponse = JSON.parse(event.data);
-        setDecisions((prev) => [payload, ...prev.slice(0, 49)]); // Keep latest 50
+        setDecisions((prev) => {
+          // If decision already exists (e.g. async AI shadow score update), update in place
+          const existingIndex = prev.findIndex(
+            (d) => d.decisionId === payload.decisionId || (d.transactionId && d.transactionId === payload.transactionId)
+          );
+
+          if (existingIndex !== -1) {
+            const updated = [...prev];
+            updated[existingIndex] = { ...updated[existingIndex], ...payload };
+            return updated;
+          }
+
+          return [payload, ...prev.slice(0, 49)]; // Prepend new decision, keep latest 50
+        });
       } catch (err) {
         console.error('Failed to parse SSE decision event:', err);
       }
