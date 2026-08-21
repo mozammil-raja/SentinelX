@@ -355,60 +355,52 @@ export function TransactionSimulator() {
   const currencySymbol = currentCustomer.currency === 'USD' ? '$' : '₹';
 
   return (
-    <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 lg:p-6 space-y-6 backdrop-blur-md shadow-2xl">
+    <div className="bg-[#0E1219] border border-slate-800 rounded-lg p-5 lg:p-6 space-y-6">
       {/* Top Banner & Dimension Navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-500 text-white font-bold shadow-lg shadow-indigo-950/50">
-            <Sparkles className="w-5 h-5" />
+          <div className="w-8 h-8 rounded bg-slate-900 border border-slate-700 flex items-center justify-center text-slate-200">
+            <Activity className="w-4 h-4 text-blue-400" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-slate-100 tracking-tight">
-                Explainable Transaction Risk Simulator
+              <h2 className="text-base font-mono font-bold text-slate-100 tracking-wide uppercase">
+                RISK_EVALUATION_WORKBENCH // TRANSACTION_SIMULATOR
               </h2>
-              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-indigo-950/80 text-indigo-300 border border-indigo-700/50">
-                Risk Laboratory
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-700">
+                LIVE_MODE
               </span>
             </div>
-            <p className="text-xs text-slate-400">
-              Evaluates individual payment transactions across <strong>Behavioral</strong>, <strong>Velocity</strong>, and <strong>Relationship</strong> dimensions.
+            <p className="text-xs text-slate-400 font-mono mt-0.5">
+              Multi-dimensional evaluation: [DIM_A: BEHAVIOR] • [DIM_B: VELOCITY] • [DIM_C: ENTITY_GRAPH]
             </p>
           </div>
         </div>
 
-        {/* Dimension Indicators & Idempotency */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <div className="hidden xl:flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-1 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-400">
-            <span className="text-indigo-400 font-semibold">Dim A: Behavior</span>
-            <span className="text-slate-600">•</span>
-            <span className="text-purple-400 font-semibold">Dim B: Velocity</span>
-            <span className="text-slate-600">•</span>
-            <span className="text-pink-400 font-semibold">Dim C: Network</span>
-          </div>
-
-          <div className="flex items-center gap-2 bg-slate-950/80 border border-slate-800 rounded-xl p-1.5 text-xs">
+        {/* Idempotency & Latency Telemetry */}
+        <div className="flex items-center gap-2 self-start sm:self-auto font-mono text-xs">
+          <div className="flex items-center gap-2 bg-[#090C10] border border-slate-800 rounded px-2.5 py-1">
             <button
               type="button"
               onClick={() => setEnableIdempotency(!enableIdempotency)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-[11px] transition-all ${
+              className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] transition-colors ${
                 enableIdempotency
-                  ? 'bg-purple-950 text-purple-300 border border-purple-800/60 shadow-sm'
-                  : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+                  ? 'bg-blue-950 text-blue-300 border border-blue-800/80 font-semibold'
+                  : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <KeyRound className="w-3.5 h-3.5" />
-              <span>Idempotency {enableIdempotency ? 'ON' : 'OFF'}</span>
+              <KeyRound className="w-3 h-3" />
+              <span>IDEMPOTENCY: {enableIdempotency ? 'ON' : 'OFF'}</span>
             </button>
 
             {enableIdempotency && (
-              <div className="flex items-center gap-1.5 font-mono text-[11px] pl-1 text-slate-300">
+              <div className="flex items-center gap-1.5 text-[11px] pl-1 text-slate-300 border-l border-slate-800">
                 <span className="text-slate-400">{idempotencyKey}</span>
                 <button
                   type="button"
                   onClick={regenerateIdempotencyKey}
-                  className="p-1 text-slate-400 hover:text-slate-200 transition-colors"
-                  title="Generate new idempotency key"
+                  className="p-0.5 text-slate-500 hover:text-slate-200 transition-colors"
+                  title="Generate new token"
                 >
                   <RotateCw className="w-3 h-3" />
                 </button>
@@ -416,8 +408,8 @@ export function TransactionSimulator() {
             )}
 
             {lastResult && (
-              <div className="flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700/50 ml-1">
-                <span className="text-slate-400">Latency:</span>
+              <div className="flex items-center gap-1 text-[11px] pl-2 border-l border-slate-800 text-slate-400">
+                <span>LATENCY:</span>
                 <span className="text-emerald-400 font-bold">{lastResult.evaluationTimeMs}ms</span>
               </div>
             )}
@@ -425,30 +417,32 @@ export function TransactionSimulator() {
         </div>
       </div>
 
-      {/* STEP 1: Who is Making the Payment? */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-400">
-            <UserCheck className="w-4 h-4" />
-            <span>1. Who is making the payment? (Customer Behavioral Baseline)</span>
+      {/* SECTION 1: Customer Profile Baseline Selection */}
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between font-mono">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-300">
+            <UserCheck className="w-3.5 h-3.5 text-blue-400" />
+            <span>01 // SELECT CUSTOMER PROFILE (BEHAVIORAL BASELINE)</span>
           </div>
           <span className="text-[11px] text-slate-400">
-            Selected: <strong className="text-slate-200">{currentCustomer.name}</strong> ({currentCustomer.usualLocation?.split(',')[0]})
+            ACTIVE_ACCOUNT: <span className="text-slate-200 font-semibold">{currentCustomer.name}</span> ({currentCustomer.usualLocation?.split(',')[0]})
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 font-mono">
           {customers.map((c) => {
             const isSelected = c.id === selectedCustomerId;
             const isLow = c.riskSegment === 'LOW';
             const isMed = c.riskSegment === 'MEDIUM';
             const isHigh = c.riskSegment === 'HIGH';
 
-            const badgeBg = isLow
-              ? 'bg-emerald-950/80 text-emerald-400 border-emerald-800/50'
+            const tierBadge = isLow
+              ? 'text-emerald-400 border-emerald-800/80 bg-emerald-950/40'
               : isMed
-              ? 'bg-amber-950/80 text-amber-400 border-amber-800/50'
-              : 'bg-rose-950/80 text-rose-400 border-rose-800/50';
+              ? 'text-amber-400 border-amber-800/80 bg-amber-950/40'
+              : isHigh
+              ? 'text-orange-400 border-orange-800/80 bg-orange-950/40'
+              : 'text-red-400 border-red-800/80 bg-red-950/40';
 
             const sym = c.currency === 'USD' ? '$' : '₹';
 
@@ -457,31 +451,31 @@ export function TransactionSimulator() {
                 key={c.id}
                 type="button"
                 onClick={() => handleSelectCustomer(c.id)}
-                className={`p-3 rounded-xl text-left transition-all border flex flex-col justify-between space-y-2 ${
+                className={`p-2.5 rounded text-left transition-all border flex flex-col justify-between space-y-2 ${
                   isSelected
-                    ? 'bg-indigo-950/60 border-indigo-500 shadow-md shadow-indigo-950/40 ring-1 ring-indigo-500'
-                    : 'bg-slate-950/50 border-slate-800/80 hover:border-slate-700 hover:bg-slate-950/80'
+                    ? 'bg-slate-800/90 border-blue-500 ring-1 ring-blue-500/80 text-slate-100'
+                    : 'bg-[#090C10] border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
                 }`}
               >
                 <div>
                   <div className="flex items-center justify-between gap-1 mb-1">
                     <span className="font-semibold text-xs text-slate-100 truncate">{c.name}</span>
-                    <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded-full border ${badgeBg}`}>
+                    <span className={`text-[9px] px-1 py-0.2 rounded border ${tierBadge}`}>
                       {c.riskSegment}
                     </span>
                   </div>
                   <p className="text-[10px] text-slate-400 truncate">{c.occupation || c.email}</p>
                 </div>
 
-                <div className="border-t border-slate-800/80 pt-1.5 space-y-0.5 text-[10px] font-mono text-slate-300">
-                  <div className="flex items-center justify-between text-slate-400">
-                    <span>Baseline Spend:</span>
+                <div className="border-t border-slate-800/80 pt-1.5 space-y-0.5 text-[10px] text-slate-400">
+                  <div className="flex items-center justify-between">
+                    <span>SPEND_LIMIT:</span>
                     <span className="text-slate-200">
                       {sym}{c.typicalSpendMin?.toLocaleString()}–{sym}{c.typicalSpendMax?.toLocaleString()}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-slate-400 truncate">
-                    <span>Location:</span>
+                  <div className="flex items-center justify-between truncate">
+                    <span>REGION:</span>
                     <span className="text-slate-200 truncate">{c.usualLocation?.split(',')[0]}</span>
                   </div>
                 </div>
@@ -491,26 +485,47 @@ export function TransactionSimulator() {
         </div>
       </div>
 
-      {/* STEP 2: Transaction Details & Suspicious Conditions */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 pt-2 border-t border-slate-800/80">
-        {/* Left: Input Form + Suspicious Condition Toggles */}
+      {/* SECTION 2: Transaction Details & Anomaly Ingestion Matrix */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 pt-3 border-t border-slate-800 font-mono">
+        {/* Left: Input Form + Anomaly Injections */}
         <div className="lg:col-span-7 space-y-4">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-cyan-400">
-            <SlidersHorizontal className="w-4 h-4" />
-            <span>2. What are they buying &amp; What looks suspicious?</span>
+          <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-300">
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-blue-400" />
+              <span>02 // TRANSACTION PARAMETERS &amp; ANOMALY INJECTION</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsUnusualAmount(false);
+                setIsNewDevice(false);
+                setIsLocationHop(false);
+                setIsBlacklistedMerchant(false);
+                setIsVelocityBurst(false);
+                setSelectedMerchantId('mer_grocery_fresh');
+                const def = currentCustomer.typicalSpendMin
+                  ? Math.round((currentCustomer.typicalSpendMin + (currentCustomer.typicalSpendMax || 3000)) / 2)
+                  : 1200;
+                setAmount(def);
+              }}
+              className="text-[10px] text-slate-400 hover:text-slate-200 flex items-center gap-1 transition-colors"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>RESET_BASELINE</span>
+            </button>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Amount Input */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-slate-300 flex items-center justify-between">
-                <span>Transaction Amount ({currencySymbol})</span>
-                <span className="text-[10px] text-slate-400">
-                  Expected: {currencySymbol}{currentCustomer.typicalSpendMin?.toLocaleString()}–{currencySymbol}{currentCustomer.typicalSpendMax?.toLocaleString()}
+            <div className="space-y-1">
+              <label className="text-[11px] text-slate-400 flex items-center justify-between">
+                <span>AMOUNT ({currencySymbol})</span>
+                <span className="text-[10px] text-slate-500">
+                  EXP: {currencySymbol}{currentCustomer.typicalSpendMin?.toLocaleString()}–{currencySymbol}{currentCustomer.typicalSpendMax?.toLocaleString()}
                 </span>
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2 text-xs font-mono text-slate-400">{currencySymbol}</span>
+                <span className="absolute left-2.5 top-1.5 text-xs text-slate-500">{currencySymbol}</span>
                 <input
                   type="number"
                   min="1"
@@ -519,21 +534,21 @@ export function TransactionSimulator() {
                     setAmount(Number(e.target.value));
                     setIsUnusualAmount(false);
                   }}
-                  className="w-full bg-slate-950/80 border border-slate-800 focus:border-cyan-500 rounded-lg pl-7 pr-3 py-1.5 text-xs text-slate-100 font-mono focus:outline-none transition-colors"
+                  className="w-full bg-[#090C10] border border-slate-800 focus:border-blue-500 rounded pl-6 pr-3 py-1.5 text-xs text-slate-100 focus:outline-none transition-colors"
                 />
               </div>
             </div>
 
             {/* Merchant Selector */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-slate-300">Target Merchant</label>
+            <div className="space-y-1">
+              <label className="text-[11px] text-slate-400">TARGET_MERCHANT</label>
               <select
                 value={selectedMerchantId}
                 onChange={(e) => {
                   setSelectedMerchantId(e.target.value);
                   setIsBlacklistedMerchant(e.target.value === 'mer_black_1');
                 }}
-                className="w-full bg-slate-950/80 border border-slate-800 focus:border-cyan-500 rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none transition-colors"
+                className="w-full bg-[#090C10] border border-slate-800 focus:border-blue-500 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none transition-colors"
               >
                 {MERCHANTS.map((m) => (
                   <option key={m.id} value={m.id}>
@@ -544,308 +559,283 @@ export function TransactionSimulator() {
             </div>
           </div>
 
-          {/* Simulate Suspicious Conditions */}
-          <div className="space-y-2 bg-slate-950/60 border border-slate-800 rounded-xl p-3.5">
-            <div className="flex items-center justify-between pb-1 border-b border-slate-800/80">
-              <span className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
-                <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
-                <span>Simulate Suspicious Conditions:</span>
+          {/* Anomaly Vector Matrix */}
+          <div className="space-y-2 bg-[#090C10] border border-slate-800 rounded p-3">
+            <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider flex items-center justify-between pb-1 border-b border-slate-800">
+              <span className="flex items-center gap-1.5">
+                <ShieldAlert className="w-3.5 h-3.5 text-slate-400" />
+                <span>INJECT ANOMALY SIGNALS:</span>
               </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsUnusualAmount(false);
-                  setIsNewDevice(false);
-                  setIsLocationHop(false);
-                  setIsBlacklistedMerchant(false);
-                  setIsVelocityBurst(false);
-                  setSelectedMerchantId('mer_grocery_fresh');
-                  const def = currentCustomer.typicalSpendMin
-                    ? Math.round((currentCustomer.typicalSpendMin + (currentCustomer.typicalSpendMax || 3000)) / 2)
-                    : 1200;
-                  setAmount(def);
-                }}
-                className="text-[10px] text-slate-400 hover:text-slate-200 flex items-center gap-1 transition-colors"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>Reset to Clean</span>
-              </button>
+              <span className="text-[10px] text-slate-500">SELECT TO SIMULATE ATTACK</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
               {/* Condition 1: Unusual Amount Spike */}
-              <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${
-                isUnusualAmount ? 'bg-amber-950/40 border-amber-700/60 text-amber-200' : 'bg-slate-900/50 border-slate-800 text-slate-300 hover:border-slate-700'
+              <label className={`flex items-start gap-2.5 p-2 rounded border cursor-pointer transition-colors ${
+                isUnusualAmount ? 'bg-amber-950/30 border-amber-700/80 text-amber-200' : 'bg-[#0E1219] border-slate-800 text-slate-300 hover:border-slate-700'
               }`}>
                 <input
                   type="checkbox"
                   checked={isUnusualAmount}
                   onChange={(e) => handleToggleUnusualAmount(e.target.checked)}
-                  className="mt-0.5 rounded border-slate-700 text-indigo-600 focus:ring-0"
+                  className="mt-0.5 rounded border-slate-700 text-blue-600 focus:ring-0"
                 />
                 <div>
                   <div className="font-semibold text-[11px] flex items-center justify-between">
-                    <span>Unusual Amount</span>
-                    <span className="text-[10px] font-mono text-amber-400">+50 pts</span>
+                    <span>ANOMALY_SPEND_SPIKE</span>
+                    <span className="text-[10px] text-amber-400 font-bold">+50 PTS</span>
                   </div>
-                  <p className="text-[10px] text-slate-400">Sets amount significantly above normal spend baseline</p>
+                  <p className="text-[10px] text-slate-500">Forces spend significantly above historical baseline</p>
                 </div>
               </label>
 
               {/* Condition 2: New / Untrusted Device */}
-              <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${
-                isNewDevice ? 'bg-indigo-950/40 border-indigo-700/60 text-indigo-200' : 'bg-slate-900/50 border-slate-800 text-slate-300 hover:border-slate-700'
+              <label className={`flex items-start gap-2.5 p-2 rounded border cursor-pointer transition-colors ${
+                isNewDevice ? 'bg-blue-950/30 border-blue-700/80 text-blue-200' : 'bg-[#0E1219] border-slate-800 text-slate-300 hover:border-slate-700'
               }`}>
                 <input
                   type="checkbox"
                   checked={isNewDevice}
                   onChange={(e) => setIsNewDevice(e.target.checked)}
-                  className="mt-0.5 rounded border-slate-700 text-indigo-600 focus:ring-0"
+                  className="mt-0.5 rounded border-slate-700 text-blue-600 focus:ring-0"
                 />
                 <div>
                   <div className="font-semibold text-[11px] flex items-center justify-between">
-                    <span>New / Untrusted Device</span>
-                    <span className="text-[10px] font-mono text-indigo-400">+25 pts</span>
+                    <span>UNTRUSTED_HARDWARE_FP</span>
+                    <span className="text-[10px] text-blue-400 font-bold">+25 PTS</span>
                   </div>
-                  <p className="text-[10px] text-slate-400">Unrecognized browser / SHA-256 fingerprint</p>
+                  <p className="text-[10px] text-slate-500">Unrecognized client SHA-256 hardware hash</p>
                 </div>
               </label>
 
               {/* Condition 3: Geolocation / IP Anomaly */}
-              <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${
-                isLocationHop ? 'bg-cyan-950/40 border-cyan-700/60 text-cyan-200' : 'bg-slate-900/50 border-slate-800 text-slate-300 hover:border-slate-700'
+              <label className={`flex items-start gap-2.5 p-2 rounded border cursor-pointer transition-colors ${
+                isLocationHop ? 'bg-cyan-950/30 border-cyan-700/80 text-cyan-200' : 'bg-[#0E1219] border-slate-800 text-slate-300 hover:border-slate-700'
               }`}>
                 <input
                   type="checkbox"
                   checked={isLocationHop}
                   onChange={(e) => setIsLocationHop(e.target.checked)}
-                  className="mt-0.5 rounded border-slate-700 text-indigo-600 focus:ring-0"
+                  className="mt-0.5 rounded border-slate-700 text-blue-600 focus:ring-0"
                 />
                 <div>
                   <div className="font-semibold text-[11px] flex items-center justify-between">
-                    <span>Geolocation / IP Anomaly</span>
-                    <span className="text-[10px] font-mono text-cyan-400">+60 pts</span>
+                    <span>GEO_IP_SUBNET_HOP</span>
+                    <span className="text-[10px] text-cyan-400 font-bold">+60 PTS</span>
                   </div>
-                  <p className="text-[10px] text-slate-400">Payment from unfamiliar geography or VPN proxy</p>
+                  <p className="text-[10px] text-slate-500">Originates outside customer usual subnet/region</p>
                 </div>
               </label>
 
               {/* Condition 4: Suspicious Merchant */}
-              <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${
-                isBlacklistedMerchant ? 'bg-rose-950/40 border-rose-700/60 text-rose-200' : 'bg-slate-900/50 border-slate-800 text-slate-300 hover:border-slate-700'
+              <label className={`flex items-start gap-2.5 p-2 rounded border cursor-pointer transition-colors ${
+                isBlacklistedMerchant ? 'bg-red-950/30 border-red-700/80 text-red-200' : 'bg-[#0E1219] border-slate-800 text-slate-300 hover:border-slate-700'
               }`}>
                 <input
                   type="checkbox"
                   checked={isBlacklistedMerchant}
                   onChange={(e) => handleToggleMerchant(e.target.checked)}
-                  className="mt-0.5 rounded border-slate-700 text-indigo-600 focus:ring-0"
+                  className="mt-0.5 rounded border-slate-700 text-blue-600 focus:ring-0"
                 />
                 <div>
                   <div className="font-semibold text-[11px] flex items-center justify-between">
-                    <span>Suspicious Merchant</span>
-                    <span className="text-[10px] font-mono text-rose-400">+80 pts</span>
+                    <span>WATCHLIST_MERCHANT</span>
+                    <span className="text-[10px] text-red-400 font-bold">+80 PTS</span>
                   </div>
-                  <p className="text-[10px] text-slate-400">Routes to merchant on high-risk watchlist</p>
+                  <p className="text-[10px] text-slate-500">Routes to blacklisted / sanctioned entity</p>
                 </div>
               </label>
 
               {/* Condition 5: Rapid Transaction Velocity (Redis) */}
-              <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all sm:col-span-2 ${
-                isVelocityBurst ? 'bg-purple-950/40 border-purple-700/60 text-purple-200' : 'bg-slate-900/50 border-slate-800 text-slate-300 hover:border-slate-700'
+              <label className={`flex items-start gap-2.5 p-2 rounded border cursor-pointer transition-colors sm:col-span-2 ${
+                isVelocityBurst ? 'bg-purple-950/30 border-purple-700/80 text-purple-200' : 'bg-[#0E1219] border-slate-800 text-slate-300 hover:border-slate-700'
               }`}>
                 <input
                   type="checkbox"
                   checked={isVelocityBurst}
                   onChange={(e) => setIsVelocityBurst(e.target.checked)}
-                  className="mt-0.5 rounded border-slate-700 text-indigo-600 focus:ring-0"
+                  className="mt-0.5 rounded border-slate-700 text-blue-600 focus:ring-0"
                 />
                 <div>
                   <div className="font-semibold text-[11px] flex items-center justify-between">
-                    <span>Rapid Transaction Velocity (Redis ZSET Sliding Window)</span>
-                    <span className="text-[10px] font-mono text-purple-400">+40 pts</span>
+                    <span>VELOCITY_BURST_ATTACK (REDIS_ZSET)</span>
+                    <span className="text-[10px] text-purple-400 font-bold">+40 PTS</span>
                   </div>
-                  <p className="text-[10px] text-slate-400">Simulates card-testing burst (6 transactions in &lt; 1s) to exceed velocity limits</p>
+                  <p className="text-[10px] text-slate-500">Fires 6 sequential payments in &lt;1s to trip sliding window rate limit</p>
                 </div>
               </label>
             </div>
           </div>
 
-          {/* Simulate Action Button */}
+          {/* Primary Action Button */}
           <button
             type="button"
             disabled={loading || bursting}
             onClick={handleRunSimulation}
-            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white font-semibold text-sm shadow-lg shadow-indigo-950/50 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+            className="w-full py-2.5 px-4 rounded bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-mono font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
           >
             {loading || bursting ? (
               <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>{bursting ? 'Simulating 6x Velocity Burst...' : 'Evaluating Risk Pipeline (< 15ms)...'}</span>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>{bursting ? 'EXECUTING_6X_BURST...' : 'SCORING_TRANSACTION_PIPELINE...'}</span>
               </>
             ) : (
               <>
-                <Play className="w-4 h-4 fill-white" />
-                <span>Simulate Payment &amp; Evaluate Risk</span>
+                <Play className="w-3.5 h-3.5 fill-white" />
+                <span>EXECUTE_PAYMENT_SCORING</span>
               </>
             )}
           </button>
         </div>
 
-        {/* Right: Step 3 (What Does SentinelX Think?) & Step 4 (Why? + What-If) */}
-        <div className="lg:col-span-5 space-y-4">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-400">
-            <Activity className="w-4 h-4" />
-            <span>3 &amp; 4. What does SentinelX think &amp; Why?</span>
+        {/* Right: Step 3 & 4 (Decision Verdict & Signal Decomposition) */}
+        <div className="lg:col-span-5 space-y-3 font-mono">
+          <div className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+            <Activity className="w-3.5 h-3.5 text-blue-400" />
+            <span>03 // DECISION VERDICT &amp; SIGNAL AUDIT</span>
           </div>
 
           {!lastResult ? (
-            <div className="h-full min-h-[300px] border border-dashed border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center text-center space-y-2 text-slate-500 bg-slate-950/30">
-              <Sparkles className="w-8 h-8 text-slate-600 animate-pulse" />
-              <p className="text-xs font-medium text-slate-400">No Transaction Evaluated Yet</p>
-              <p className="text-[11px] text-slate-500 max-w-xs">
-                Select a customer profile, adjust conditions, and click <strong>Simulate Payment &amp; Evaluate Risk</strong> to see the real-time verdict.
+            <div className="h-[340px] border border-slate-800 rounded p-6 flex flex-col items-center justify-center text-center space-y-2 text-slate-500 bg-[#090C10]">
+              <HelpCircle className="w-6 h-6 text-slate-600" />
+              <p className="text-xs font-semibold text-slate-400 uppercase">NO_TRANSACTION_EVALUATED</p>
+              <p className="text-[11px] text-slate-500 max-w-xs font-sans">
+                Select a customer profile, configure anomaly vectors, and click EXECUTE_PAYMENT_SCORING to evaluate against active rules.
               </p>
             </div>
           ) : (
-            <div className="space-y-3 animate-in fade-in duration-200">
-              {/* Verdict Banner */}
+            <div className="space-y-3">
+              {/* Verdict Summary Block */}
               <div
-                className={`p-4 rounded-xl border flex items-start justify-between gap-3 ${
+                className={`p-3.5 rounded border flex items-start justify-between gap-3 ${
                   lastResult.decision === 'ALLOW'
-                    ? 'bg-emerald-950/70 border-emerald-700/60 text-emerald-300'
+                    ? 'bg-[#0B1A14] border-emerald-800/80 text-emerald-300'
                     : lastResult.decision === 'REVIEW'
-                    ? 'bg-amber-950/70 border-amber-700/60 text-amber-300'
-                    : 'bg-rose-950/70 border-rose-700/60 text-rose-300'
+                    ? 'bg-[#1A140B] border-amber-800/80 text-amber-300'
+                    : 'bg-[#1A0B0B] border-red-800/80 text-red-300'
                 }`}
               >
                 <div className="flex items-start gap-3">
-                  {lastResult.decision === 'ALLOW' && <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />}
-                  {lastResult.decision === 'REVIEW' && <AlertTriangle className="w-6 h-6 text-amber-400 shrink-0 mt-0.5" />}
-                  {lastResult.decision === 'BLOCK' && <XCircle className="w-6 h-6 text-rose-400 shrink-0 mt-0.5" />}
+                  {lastResult.decision === 'ALLOW' && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />}
+                  {lastResult.decision === 'REVIEW' && <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />}
+                  {lastResult.decision === 'BLOCK' && <XCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />}
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-base font-extrabold tracking-tight">DECISION: {lastResult.decision}</span>
-                      <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-slate-950/60 border border-slate-800">
-                        Score: {lastResult.finalScore} / 100
+                      <span className="text-sm font-bold tracking-wider uppercase">VERDICT: {lastResult.decision}</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-black/40 border border-current font-bold">
+                        SCORE: {lastResult.finalScore}/100
                       </span>
                     </div>
-                    <p className="text-xs text-slate-300/90 mt-0.5">
+                    <p className="text-[11px] text-slate-300 mt-1 font-sans">
                       {lastResult.decision === 'ALLOW'
-                        ? 'Low risk score (< 30). Transaction is consistent with profile.'
+                        ? 'Low risk score (< 30). Transaction attributes conform to customer baseline.'
                         : lastResult.decision === 'REVIEW'
-                        ? 'Moderate risk score (30–69). Routed to compliance queue for verification.'
-                        : 'High risk score (70+). Transaction blocked due to multiple suspicious anomalies.'}
+                        ? 'Moderate risk score (30–69). Routed to compliance queue for human analyst resolution.'
+                        : 'High risk score (70+). Hard rejection triggered due to critical anomaly penalty aggregation.'}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Visual Risk Gauge Meter */}
-              <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 space-y-1.5">
-                <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
-                  <span>ALLOW (0–29)</span>
-                  <span>REVIEW (30–69)</span>
-                  <span>BLOCK (70–100)</span>
+              {/* Visual Score Meter */}
+              <div className="bg-[#090C10] border border-slate-800 rounded p-2.5 space-y-1">
+                <div className="flex items-center justify-between text-[10px] text-slate-500">
+                  <span>ALLOW [0-29]</span>
+                  <span>REVIEW [30-69]</span>
+                  <span>BLOCK [70-100]</span>
                 </div>
-                <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden flex">
+                <div className="w-full bg-slate-900 h-1.5 rounded overflow-hidden flex">
                   <div
                     style={{ width: `${Math.min(100, lastResult.finalScore)}%` }}
-                    className={`h-full transition-all duration-500 rounded-full ${
+                    className={`h-full transition-all duration-300 ${
                       lastResult.finalScore < 30
-                        ? 'bg-emerald-400'
+                        ? 'bg-emerald-500'
                         : lastResult.finalScore < 70
-                        ? 'bg-amber-400'
-                        : 'bg-rose-500'
+                        ? 'bg-amber-500'
+                        : 'bg-red-500'
                     }`}
                   />
                 </div>
               </div>
 
-              {/* Explainability Signal Breakdown */}
-              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-2">
-                <div className="flex items-center justify-between border-b border-slate-800/80 pb-1.5">
-                  <span className="text-xs font-bold text-slate-200">Why? (Triggered Risk Signals)</span>
-                  <span className="text-[10px] font-mono text-slate-400">{lastResult.firedRules.length} Signals Detected</span>
+              {/* Triggered Signals Audit List */}
+              <div className="bg-[#090C10] border border-slate-800 rounded p-3 space-y-2">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-1 text-[11px]">
+                  <span className="font-semibold text-slate-300 uppercase">FIRED_RISK_SIGNALS</span>
+                  <span className="text-[10px] text-slate-500">{lastResult.firedRules.length} DETECTED</span>
                 </div>
 
                 {lastResult.firedRules.length === 0 ? (
-                  <p className="text-xs text-emerald-400/90 py-1">
-                    ✓ Clean transaction. Transaction parameters match {currentCustomer.name}&apos;s behavioral baseline.
+                  <p className="text-xs text-emerald-400 py-0.5">
+                    [CLEAN] All transaction parameters conform to account baseline.
                   </p>
                 ) : (
-                  <div className="space-y-1.5 text-xs">
+                  <div className="space-y-1 text-xs">
                     {lastResult.firedRules.map((ruleText, idx) => (
-                      <div key={idx} className="p-2 rounded bg-slate-900/90 border border-slate-800 flex items-start gap-2 text-slate-300">
-                        <span className="text-amber-400 font-mono font-bold text-[11px] shrink-0 mt-0.5">#{idx + 1}</span>
-                        <span className="text-[11px] leading-relaxed">{ruleText}</span>
+                      <div key={idx} className="p-1.5 rounded bg-[#0E1219] border border-slate-800 flex items-start gap-2 text-slate-300">
+                        <span className="text-blue-400 font-bold text-[10px] shrink-0 mt-0.5">#{idx + 1}</span>
+                        <span className="text-[11px] leading-tight font-sans">{ruleText}</span>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
 
-              {/* What-If Sensitivity Studio */}
+              {/* What-If Live Sensitivity Matrix */}
               {whatIfCalculated && (
-                <div className="bg-slate-950/90 border border-indigo-900/40 rounded-xl p-3.5 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-300">
-                      <HelpCircle className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>Interactive &quot;What-If&quot; Sensitivity Studio</span>
-                    </div>
-                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                <div className="bg-[#090C10] border border-slate-800 rounded p-3 space-y-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-semibold text-slate-300 uppercase">WHAT_IF_SENSITIVITY_MATRIX</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded border font-bold ${
                       whatIfCalculated.verdict === 'ALLOW'
-                        ? 'bg-emerald-950/80 text-emerald-400 border-emerald-800/40'
+                        ? 'bg-emerald-950/40 text-emerald-400 border-emerald-800/60'
                         : whatIfCalculated.verdict === 'REVIEW'
-                        ? 'bg-amber-950/80 text-amber-400 border-amber-800/40'
-                        : 'bg-rose-950/80 text-rose-400 border-rose-800/40'
+                        ? 'bg-amber-950/40 text-amber-400 border-amber-800/60'
+                        : 'bg-red-950/40 text-red-400 border-red-800/60'
                     }`}>
-                      Recalculated: {whatIfCalculated.verdict} ({whatIfCalculated.score} pts)
+                      {whatIfCalculated.verdict} ({whatIfCalculated.score} PTS)
                     </span>
                   </div>
 
-                  <p className="text-[10px] text-slate-400">
-                    Demonstrate signal sensitivity live in interviews by toggling individual conditions:
-                  </p>
-
                   <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-                    <label className="flex items-center gap-1.5 p-1.5 rounded bg-slate-900 border border-slate-800 text-slate-300 cursor-pointer">
+                    <label className="flex items-center gap-1.5 p-1 rounded bg-[#0E1219] border border-slate-800 text-slate-300 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={whatIfAmountHigh}
                         onChange={(e) => setWhatIfAmountHigh(e.target.checked)}
-                        className="rounded border-slate-700 text-indigo-600"
+                        className="rounded border-slate-700 text-blue-600"
                       />
-                      <span>Amount Anomaly</span>
+                      <span>AMOUNT_SPEND</span>
                     </label>
 
-                    <label className="flex items-center gap-1.5 p-1.5 rounded bg-slate-900 border border-slate-800 text-slate-300 cursor-pointer">
+                    <label className="flex items-center gap-1.5 p-1 rounded bg-[#0E1219] border border-slate-800 text-slate-300 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={whatIfUntrusted}
                         onChange={(e) => setWhatIfUntrusted(e.target.checked)}
-                        className="rounded border-slate-700 text-indigo-600"
+                        className="rounded border-slate-700 text-blue-600"
                       />
-                      <span>Untrusted Device</span>
+                      <span>DEVICE_FP</span>
                     </label>
 
-                    <label className="flex items-center gap-1.5 p-1.5 rounded bg-slate-900 border border-slate-800 text-slate-300 cursor-pointer">
+                    <label className="flex items-center gap-1.5 p-1 rounded bg-[#0E1219] border border-slate-800 text-slate-300 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={whatIfLocationHop}
                         onChange={(e) => setWhatIfLocationHop(e.target.checked)}
-                        className="rounded border-slate-700 text-indigo-600"
+                        className="rounded border-slate-700 text-blue-600"
                       />
-                      <span>Location Anomaly</span>
+                      <span>GEO_SUBNET</span>
                     </label>
 
-                    <label className="flex items-center gap-1.5 p-1.5 rounded bg-slate-900 border border-slate-800 text-slate-300 cursor-pointer">
+                    <label className="flex items-center gap-1.5 p-1 rounded bg-[#0E1219] border border-slate-800 text-slate-300 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={whatIfMerchantBlacklisted}
                         onChange={(e) => setWhatIfMerchantBlacklisted(e.target.checked)}
-                        className="rounded border-slate-700 text-indigo-600"
+                        className="rounded border-slate-700 text-blue-600"
                       />
-                      <span>Suspicious Merchant</span>
+                      <span>WATCHLIST</span>
                     </label>
                   </div>
                 </div>
