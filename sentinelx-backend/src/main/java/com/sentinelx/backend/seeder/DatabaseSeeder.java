@@ -190,6 +190,19 @@ public class DatabaseSeeder implements CommandLineRunner {
                     .createdBy("system")
                     .build());
         }
+
+        if (!ruleRepository.existsById("RULE_07")) {
+            ruleRepository.save(Rule.builder()
+                    .id("RULE_07")
+                    .name("Syndicate Fraud Ring")
+                    .description("Graph analysis: Triggers if account shares hardware devices, IPs, or cards with blocked fraudsters")
+                    .conditionJson("{\"maxHops\": 2, \"inspectDevices\": true, \"inspectIps\": true}")
+                    .weight(75)
+                    .version(1)
+                    .isActive(true)
+                    .createdBy("system")
+                    .build());
+        }
         log.info("Mock Rules Seeded.");
     }
 }

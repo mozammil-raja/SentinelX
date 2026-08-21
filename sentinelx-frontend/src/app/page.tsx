@@ -10,6 +10,7 @@ import { RulesManager } from '@/components/RulesManager';
 import { ReviewQueuePanel } from '@/components/ReviewQueuePanel';
 import { VelocityTelemetryCard } from '@/components/VelocityTelemetryCard';
 import { BacktestStudio } from '@/components/BacktestStudio';
+import { GraphSyndicateVisualizer } from '@/components/GraphSyndicateVisualizer';
 import {
   ShieldCheck,
   Activity,
@@ -17,11 +18,12 @@ import {
   ClipboardCheck,
   Gauge,
   FlaskConical,
+  Share2,
   LogIn,
   LogOut,
 } from 'lucide-react';
 
-type Tab = 'stream' | 'rules' | 'reviews' | 'velocity' | 'backtest';
+type Tab = 'stream' | 'rules' | 'reviews' | 'velocity' | 'backtest' | 'graph';
 
 function DashboardContent() {
   const { status, decisions, lastPing, clearDecisions } = useDecisionStream();
@@ -110,7 +112,19 @@ function DashboardContent() {
                 }`}
               >
                 <FlaskConical className="w-3.5 h-3.5 text-purple-400" />
-                <span>Backtest Studio</span>
+                <span>Backtest</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('graph')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  activeTab === 'graph'
+                    ? 'bg-slate-800 text-slate-100 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Share2 className="w-3.5 h-3.5 text-pink-400" />
+                <span>Graph Syndicate</span>
               </button>
             </nav>
 
@@ -181,6 +195,12 @@ function DashboardContent() {
             <BacktestStudio />
           </div>
         )}
+
+        {activeTab === 'graph' && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            <GraphSyndicateVisualizer />
+          </div>
+        )}
       </main>
 
       {/* Auth Modal */}
@@ -188,7 +208,7 @@ function DashboardContent() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800/80 py-4 text-center text-xs text-slate-500 font-mono">
-        SentinelX • Spring Boot 3.4.x (Java 21 LTS) + Spring Security (JWT) + Redis ZSET Velocity + Next.js
+        SentinelX • Spring Boot 3.4.x (Java 21 LTS) + Redis ZSET Velocity + Graph Syndicate Engine + Next.js
       </footer>
     </div>
   );

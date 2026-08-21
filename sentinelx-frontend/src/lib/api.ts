@@ -263,4 +263,49 @@ export const api = {
     getBenchmark: () =>
       fetchJson<GeminiBenchmarkResponse>('/api/v1/decisions/gemini-benchmark'),
   },
+
+  // Graph Fraud Ring & Syndicate Engine
+  graph: {
+    getNetwork: (userId: string) =>
+      fetchJson<GraphNetworkResponse>(`/api/v1/graph/network/${userId}`),
+    getSummary: () =>
+      fetchJson<Record<string, number>>('/api/v1/graph/summary'),
+    blockUser: (userId: string) =>
+      fetchJson<{ message: string }>(`/api/v1/graph/block/${userId}`, { method: 'POST' }),
+  },
 };
+
+export interface GraphNode {
+  id: string;
+  label: string;
+  type: 'USER' | 'DEVICE' | 'IP' | 'CARD';
+  isBlocked: boolean;
+  riskScore?: number;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  relationship: string;
+  weight: number;
+}
+
+export interface SyndicateDetectionResult {
+  syndicateDetected: boolean;
+  connectedBlockedUserId?: string;
+  sharedEntityId?: string;
+  sharedEntityType?: string;
+  degreesOfSeparation: number;
+  allConnectedBlockedUsers: string[];
+  explanation: string;
+}
+
+export interface GraphNetworkResponse {
+  focusUserId: string;
+  totalNodes: number;
+  totalEdges: number;
+  hasBlockedConnections: boolean;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  syndicateAnalysis?: SyndicateDetectionResult;
+}
