@@ -68,6 +68,36 @@ public class Decision {
     private Integer evaluationTimeMs;
 
     /**
+     * Asynchronous Google Gemini GenAI shadow score (0 to 100).
+     */
+    @Column(name = "gemini_score")
+    private Integer geminiScore;
+
+    /**
+     * Gemini AI risk category classification.
+     */
+    @Column(name = "gemini_category")
+    private String geminiCategory;
+
+    /**
+     * Gemini AI contextual reasoning justification.
+     */
+    @Column(name = "gemini_reasoning", columnDefinition = "TEXT")
+    private String geminiReasoning;
+
+    /**
+     * Gemini AI recommended verdict (ALLOW, REVIEW, BLOCK).
+     */
+    @Column(name = "gemini_verdict", length = 15)
+    private String geminiVerdict;
+
+    /**
+     * Gemini AI confidence score (0.0 to 1.0).
+     */
+    @Column(name = "gemini_confidence")
+    private Double geminiConfidence;
+
+    /**
      * UTC timestamp when this decision record was persisted to PostgreSQL.
      */
     @CreationTimestamp

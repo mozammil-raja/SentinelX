@@ -45,7 +45,7 @@ public class SecurityConfig {
 
                         // Public Ingestion, Telemetry & OpenAPI Documentation
                         .requestMatchers(HttpMethod.POST, "/api/v1/transactions").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/decisions/stream").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/decisions/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/velocity/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/transactions/**").permitAll()
                         .requestMatchers("/api/v1/backtest/**").permitAll()

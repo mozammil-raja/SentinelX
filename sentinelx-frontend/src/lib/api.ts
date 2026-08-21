@@ -28,6 +28,11 @@ export interface DecisionResponse {
   decision: 'ALLOW' | 'REVIEW' | 'BLOCK';
   firedRules: string[];
   evaluationTimeMs: number;
+  geminiScore?: number;
+  geminiCategory?: string;
+  geminiReasoning?: string;
+  geminiVerdict?: 'ALLOW' | 'REVIEW' | 'BLOCK';
+  geminiConfidence?: number;
   timestamp: string;
 }
 
@@ -176,6 +181,17 @@ export interface BacktestRequest {
   candidateRules?: Partial<Rule>[];
 }
 
+export interface GeminiBenchmarkResponse {
+  totalEvaluated: number;
+  agreementRatePercentage: number;
+  averageRuleScore: number;
+  averageGeminiScore: number;
+  averageScoreVariance: number;
+  ruleVerdictBreakdown: Record<string, number>;
+  geminiVerdictBreakdown: Record<string, number>;
+  categoryDistribution: Record<string, number>;
+}
+
 export const api = {
   // Transaction Ingestion & Inquiries
   transactions: {
@@ -240,5 +256,11 @@ export const api = {
       }),
     getBenchmark: () =>
       fetchJson<{ totalCount: number; categories: string[]; sampleTransactions: TransactionRequest[] }>('/api/v1/backtest/benchmark'),
+  },
+
+  // Google Gemini GenAI Shadow Router
+  gemini: {
+    getBenchmark: () =>
+      fetchJson<GeminiBenchmarkResponse>('/api/v1/decisions/gemini-benchmark'),
   },
 };

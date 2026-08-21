@@ -57,6 +57,31 @@ public class DecisionResponse {
     private Integer evaluationTimeMs;
 
     /**
+     * Optional Asynchronous Google Gemini GenAI shadow score.
+     */
+    private Integer geminiScore;
+
+    /**
+     * Gemini risk category tag.
+     */
+    private String geminiCategory;
+
+    /**
+     * Gemini natural-language reasoning summary.
+     */
+    private String geminiReasoning;
+
+    /**
+     * Gemini recommended verdict (ALLOW, REVIEW, BLOCK).
+     */
+    private String geminiVerdict;
+
+    /**
+     * Gemini confidence rating (0.0 to 1.0).
+     */
+    private Double geminiConfidence;
+
+    /**
      * ISO-8601 UTC timestamp when the decision was generated.
      */
     private OffsetDateTime timestamp;

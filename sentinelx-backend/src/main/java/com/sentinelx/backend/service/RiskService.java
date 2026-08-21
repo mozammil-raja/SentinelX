@@ -41,6 +41,7 @@ public class RiskService {
     private final IdempotencyService idempotencyService;
     private final DistributedLockService distributedLockService;
     private final AiRiskCopilotService aiRiskCopilotService;
+    private final GeminiShadowService geminiShadowService;
     private final ObjectMapper objectMapper;
 
     public RiskService(UserRepository userRepository,
@@ -54,6 +55,7 @@ public class RiskService {
                        IdempotencyService idempotencyService,
                        DistributedLockService distributedLockService,
                        AiRiskCopilotService aiRiskCopilotService,
+                       GeminiShadowService geminiShadowService,
                        ObjectMapper objectMapper) {
         this.userRepository = userRepository;
         this.deviceRepository = deviceRepository;
@@ -66,6 +68,7 @@ public class RiskService {
         this.idempotencyService = idempotencyService;
         this.distributedLockService = distributedLockService;
         this.aiRiskCopilotService = aiRiskCopilotService;
+        this.geminiShadowService = geminiShadowService;
         this.objectMapper = objectMapper;
     }
 
@@ -233,6 +236,19 @@ public class RiskService {
             // 12. Cache in Redis for Idempotency
             if (idempotencyKey != null && !idempotencyKey.isBlank()) {
                 idempotencyService.cacheDecision(idempotencyKey, response);
+            }
+
+            // 13. Asynchronously Dispatch Google Gemini GenAI Shadow Scoring Route (Non-blocking)
+            if (geminiShadowService != null) {
+                geminiShadowService.evaluateShadowAsync(
+                        decision.getId(),
+                        request,
+                        user,
+                        device,
+                        report.getFiredRuleExplanations(),
+                        report.getFinalScore(),
+                        report.getDecision()
+                );
             }
 
             return response;

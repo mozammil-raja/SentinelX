@@ -1,8 +1,19 @@
 'use client';
 
+import { useState } from 'react';
 import { DecisionResponse } from '@/lib/api';
 import { StreamStatus } from '@/hooks/useDecisionStream';
-import { Activity, ShieldCheck, AlertTriangle, ShieldX, Clock, Trash2 } from 'lucide-react';
+import {
+  Activity,
+  ShieldCheck,
+  AlertTriangle,
+  ShieldX,
+  Clock,
+  Trash2,
+  Bot,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 
 interface Props {
   decisions: DecisionResponse[];
@@ -12,12 +23,19 @@ interface Props {
 }
 
 export function LiveTransactionFeed({ decisions, status, lastPing, onClear }: Props) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   const allowCount = decisions.filter((d) => d.decision === 'ALLOW').length;
   const reviewCount = decisions.filter((d) => d.decision === 'REVIEW').length;
   const blockCount = decisions.filter((d) => d.decision === 'BLOCK').length;
-  const avgLatency = decisions.length > 0
-    ? Math.round(decisions.reduce((acc, d) => acc + (d.evaluationTimeMs || 0), 0) / decisions.length)
-    : 0;
+  const avgLatency =
+    decisions.length > 0
+      ? Math.round(decisions.reduce((acc, d) => acc + (d.evaluationTimeMs || 0), 0) / decisions.length)
+      : 0;
+
+  const toggleExpand = (id: string) => {
+    setExpandedId((prev) => (prev === id ? null : id));
+  };
 
   return (
     <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-5 space-y-4 backdrop-blur-sm">
@@ -32,7 +50,9 @@ export function LiveTransactionFeed({ decisions, status, lastPing, onClear }: Pr
               Real-Time Decision Stream (SSE)
               <span className="text-xs font-normal text-slate-400">({decisions.length} events)</span>
             </h2>
-            <p className="text-xs text-slate-400">Streaming live verdicts directly from the backend decision engine</p>
+            <p className="text-xs text-slate-400">
+              Streaming live deterministic rule verdicts with async Google Gemini AI shadow benchmarks
+            </p>
           </div>
         </div>
 
@@ -105,12 +125,13 @@ export function LiveTransactionFeed({ decisions, status, lastPing, onClear }: Pr
       </div>
 
       {/* Live Stream Table */}
-      <div className="overflow-x-auto max-h-[380px] overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/40">
+      <div className="overflow-x-auto max-h-[400px] overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/40">
         <table className="w-full text-left text-xs">
           <thead className="bg-slate-900/90 text-slate-400 sticky top-0 uppercase tracking-wider text-[10px] font-semibold border-b border-slate-800 z-10 backdrop-blur-sm">
             <tr>
               <th className="p-3">Verdict</th>
-              <th className="p-3">Score</th>
+              <th className="p-3">Rule Score</th>
+              <th className="p-3">Gemini AI Shadow</th>
               <th className="p-3">User &amp; Txn ID</th>
               <th className="p-3">Triggered Rules</th>
               <th className="p-3 text-right">Latency</th>
@@ -119,7 +140,7 @@ export function LiveTransactionFeed({ decisions, status, lastPing, onClear }: Pr
           <tbody className="divide-y divide-slate-800/60 font-mono">
             {decisions.length === 0 ? (
               <tr>
-                <td colSpan={5} className="text-center py-12 text-slate-500 font-sans">
+                <td colSpan={6} className="text-center py-12 text-slate-500 font-sans">
                   <div className="flex flex-col items-center gap-2">
                     <Activity className="w-8 h-8 text-slate-700 animate-pulse" />
                     <span>No transactions received yet. Click a preset above to simulate a transaction!</span>
@@ -128,6 +149,9 @@ export function LiveTransactionFeed({ decisions, status, lastPing, onClear }: Pr
               </tr>
             ) : (
               decisions.map((d, index) => {
+                const rowKey = d.decisionId || `${d.transactionId}-${index}`;
+                const isExpanded = expandedId === rowKey;
+
                 const verdictClass =
                   d.decision === 'ALLOW'
                     ? 'bg-emerald-950/80 text-emerald-400 border-emerald-800/60'
@@ -137,7 +161,7 @@ export function LiveTransactionFeed({ decisions, status, lastPing, onClear }: Pr
 
                 return (
                   <tr
-                    key={d.decisionId || `${d.transactionId}-${index}`}
+                    key={rowKey}
                     className="hover:bg-slate-900/50 transition-colors animate-in fade-in slide-in-from-top-1 duration-200"
                   >
                     <td className="p-3 whitespace-nowrap">
@@ -148,7 +172,7 @@ export function LiveTransactionFeed({ decisions, status, lastPing, onClear }: Pr
                     <td className="p-3 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-slate-200">{d.finalScore}</span>
-                        <div className="w-12 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                        <div className="w-10 h-1.5 rounded-full bg-slate-800 overflow-hidden">
                           <div
                             className={`h-full ${
                               d.finalScore >= 70
@@ -162,19 +186,58 @@ export function LiveTransactionFeed({ decisions, status, lastPing, onClear }: Pr
                         </div>
                       </div>
                     </td>
+
+                    {/* Gemini AI Shadow Column */}
+                    <td className="p-3 whitespace-nowrap">
+                      {d.geminiScore !== undefined ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleExpand(rowKey)}
+                          className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-purple-950/70 border border-purple-800/50 hover:border-purple-600 transition-colors text-left"
+                        >
+                          <Bot className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                          <span className="font-bold text-purple-300">{d.geminiScore} pts</span>
+                          <span className="text-[10px] text-slate-400 hidden sm:inline truncate max-w-[80px]">
+                            ({d.geminiCategory || 'AI'})
+                          </span>
+                          {isExpanded ? (
+                            <ChevronUp className="w-3 h-3 text-purple-400" />
+                          ) : (
+                            <ChevronDown className="w-3 h-3 text-purple-400" />
+                          )}
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-purple-400/60 italic flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+                          Benchmarking...
+                        </span>
+                      )}
+                    </td>
+
                     <td className="p-3 whitespace-nowrap">
                       <div className="font-sans font-medium text-slate-200">{d.userId}</div>
                       <div className="text-[10px] text-slate-500">{d.transactionId}</div>
                     </td>
+
                     <td className="p-3 text-slate-300 font-sans max-w-xs truncate">
                       {d.firedRules && d.firedRules.length > 0 ? (
-                        <span className="text-amber-300/90 text-xs">
-                          {d.firedRules.join(', ')}
-                        </span>
+                        <span className="text-amber-300/90 text-xs">{d.firedRules.join(', ')}</span>
                       ) : (
                         <span className="text-slate-500 text-xs italic">None (Clean)</span>
                       )}
+
+                      {/* Expandable Gemini AI Reasoning Drawer */}
+                      {isExpanded && d.geminiReasoning && (
+                        <div className="mt-2 p-2 rounded bg-purple-950/60 border border-purple-800/70 text-[11px] font-sans text-slate-200 space-y-1">
+                          <div className="font-semibold text-purple-300 flex items-center gap-1">
+                            <Bot className="w-3 h-3 text-purple-400" />
+                            <span>Gemini AI Anomaly Rationale (Confidence: {((d.geminiConfidence || 0.9) * 100).toFixed(0)}%):</span>
+                          </div>
+                          <p className="text-slate-300">{d.geminiReasoning}</p>
+                        </div>
+                      )}
                     </td>
+
                     <td className="p-3 text-right whitespace-nowrap text-cyan-400 font-bold">
                       {d.evaluationTimeMs ?? 0} ms
                     </td>
