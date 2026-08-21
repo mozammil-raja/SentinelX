@@ -3,6 +3,10 @@ package com.sentinelx.backend.repository;
 import com.sentinelx.backend.entity.ReviewQueue;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.util.List;
 
 /**
  * Spring Data JPA repository for managing the human analyst {@link ReviewQueue} in PostgreSQL.
@@ -16,12 +20,14 @@ public interface ReviewQueueRepository extends JpaRepository<ReviewQueue, Long> 
      * @param status Status filter
      * @return List of review queue items
      */
-    java.util.List<ReviewQueue> findByStatusOrderByCreatedAtDesc(String status);
+    @Query("SELECT rq FROM ReviewQueue rq LEFT JOIN FETCH rq.transaction t LEFT JOIN FETCH t.user LEFT JOIN FETCH rq.decision WHERE rq.status = :status ORDER BY rq.createdAt DESC")
+    List<ReviewQueue> findByStatusOrderByCreatedAtDesc(@Param("status") String status);
 
     /**
      * Retrieves all review queue items ordered newest first.
      *
      * @return List of all review items
      */
-    java.util.List<ReviewQueue> findAllByOrderByCreatedAtDesc();
+    @Query("SELECT rq FROM ReviewQueue rq LEFT JOIN FETCH rq.transaction t LEFT JOIN FETCH t.user LEFT JOIN FETCH rq.decision ORDER BY rq.createdAt DESC")
+    List<ReviewQueue> findAllByOrderByCreatedAtDesc();
 }

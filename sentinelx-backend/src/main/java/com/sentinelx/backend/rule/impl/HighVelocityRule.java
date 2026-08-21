@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sentinelx.backend.dto.TransactionRequest;
 import com.sentinelx.backend.entity.Device;
 import com.sentinelx.backend.entity.Rule;
-import com.sentinelx.backend.entity.Transaction;
 import com.sentinelx.backend.entity.User;
 import com.sentinelx.backend.rule.EvaluationContext;
 import com.sentinelx.backend.rule.RiskRule;
@@ -14,15 +13,12 @@ import com.sentinelx.backend.service.VelocityService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.time.OffsetDateTime;
-import java.util.List;
-
 /**
  * Strategy implementation for {@code RULE_01: High Velocity (5m)}.
  * 
  * <p>Detects rapid bursts of transactions from a single customer within a sliding time window.
- * Leverages Redis Sorted Sets (ZSET) via {@link VelocityService} for sub-millisecond O(log N)
- * in-memory evaluation, with automatic fallback to PostgreSQL transaction history.</p>
+ * Leverages Redis Sorted Sets (ZSET) via {@link VelocityService} for low-latency
+ * in-memory evaluation, with automatic fallback to PostgreSQL transaction history inside VelocityService.</p>
  */
 @Slf4j
 @Component
@@ -36,10 +32,10 @@ public class HighVelocityRule implements RiskRule {
      * Constructs the HighVelocityRule with ObjectMapper and VelocityService dependencies.
      *
      * @param objectMapper Spring-managed JSON object mapper
-     * @param velocityService In-memory Redis velocity tracking service
+     * @param velocityService Redis velocity tracking service with database fallback
      */
     public HighVelocityRule(ObjectMapper objectMapper, VelocityService velocityService) {
-        this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
+        this.objectMapper = objectMapper;
         this.velocityService = velocityService;
     }
 
@@ -63,32 +59,14 @@ public class HighVelocityRule implements RiskRule {
                     limit = root.get("limit").asInt(5);
                 }
             }
-        } catch (Exception ignored) {
-            // Fallback to default parameters
+        } catch (Exception e) {
+            log.warn("Failed to parse condition_json for rule {}: {}. Using defaults window={}s, limit={}.", ruleConfig.getId(), e.getMessage(), windowSeconds, limit);
         }
 
-        long count = -1;
+        // Delegate retrieval to VelocityService (handles Redis with transparent PostgreSQL fallback)
+        int count = velocityService.getUserVelocity(user.getId(), windowSeconds);
 
-        // 1. In-Memory Acceleration: Query Redis Sliding Window ZSET
-        if (velocityService != null && velocityService.isAvailable()) {
-            int redisCount = velocityService.getUserVelocity(user.getId(), windowSeconds);
-            if (redisCount >= 0) {
-                count = redisCount;
-            }
-        }
-
-        // 2. High-Availability Fallback: Scan PostgreSQL history if Redis is unavailable or unpopulated
-        if (count < 0) {
-            java.time.OffsetDateTime cutoff = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC).minusSeconds(windowSeconds);
-            List<Transaction> history = (context != null && context.getRecentTransactions() != null)
-                    ? context.getRecentTransactions()
-                    : List.of();
-            count = history.stream()
-                    .filter(t -> t.getTimestamp() != null && t.getTimestamp().isAfter(cutoff))
-                    .count();
-        }
-
-        // 3. Evaluate Threshold Breach
+        // Evaluate Threshold Breach
         if (count >= limit) {
             return RuleResult.triggered(
                     ruleConfig.getId(),
@@ -102,4 +80,3 @@ public class HighVelocityRule implements RiskRule {
         return RuleResult.notTriggered(ruleConfig.getId(), ruleConfig.getName());
     }
 }
-

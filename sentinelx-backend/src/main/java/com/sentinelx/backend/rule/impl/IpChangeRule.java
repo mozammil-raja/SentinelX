@@ -10,29 +10,27 @@ import com.sentinelx.backend.entity.User;
 import com.sentinelx.backend.rule.EvaluationContext;
 import com.sentinelx.backend.rule.RiskRule;
 import com.sentinelx.backend.rule.RuleResult;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.OffsetDateTime;
-import java.util.List;
+import java.time.ZoneOffset;
 
 /**
- * Strategy implementation for {@code RULE_04: Geolocation Hop}.
+ * Strategy implementation for {@code RULE_04: Rapid IP Change}.
  * 
- * <p>Detects rapid IP address hopping within a short time window (default 1800 seconds / 30 minutes),
- * which is a strong indicator of VPN proxy switching or credential stuffing.</p>
+ * <p>Detects rapid IP address changes within a configurable time window (default 1800 seconds / 30 minutes),
+ * indicating potential VPN proxy hopping, account takeover, or session hijacking.</p>
  */
+@Slf4j
 @Component
-public class GeolocationHopRule implements RiskRule {
+public class IpChangeRule implements RiskRule {
 
     public static final String RULE_ID = "RULE_04";
     private final ObjectMapper objectMapper;
 
-    public GeolocationHopRule() {
-        this.objectMapper = new ObjectMapper();
-    }
-
-    public GeolocationHopRule(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
+    public IpChangeRule(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -51,8 +49,8 @@ public class GeolocationHopRule implements RiskRule {
                     timeWindowSeconds = root.get("timeWindow").asInt(1800);
                 }
             }
-        } catch (Exception ignored) {
-            // Fallback to default time window
+        } catch (Exception e) {
+            log.warn("Failed to parse condition_json for rule {}: {}. Using default window {}s.", ruleConfig.getId(), e.getMessage(), timeWindowSeconds);
         }
 
         Transaction lastTxn = (context != null && context.getLastTransaction() != null)
@@ -63,7 +61,7 @@ public class GeolocationHopRule implements RiskRule {
             return RuleResult.notTriggered(ruleConfig.getId(), ruleConfig.getName());
         }
 
-        OffsetDateTime cutoff = OffsetDateTime.now().minusSeconds(timeWindowSeconds);
+        OffsetDateTime cutoff = OffsetDateTime.now(ZoneOffset.UTC).minusSeconds(timeWindowSeconds);
         boolean withinWindow = lastTxn.getTimestamp() != null
                 && lastTxn.getTimestamp().isAfter(cutoff);
 

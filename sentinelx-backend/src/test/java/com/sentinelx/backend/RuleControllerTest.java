@@ -1,10 +1,8 @@
 package com.sentinelx.backend;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sentinelx.backend.controller.RuleController;
 import com.sentinelx.backend.dto.RuleRequest;
 import com.sentinelx.backend.entity.Rule;
-import com.sentinelx.backend.exception.GlobalExceptionHandler;
 import com.sentinelx.backend.repository.RuleRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -12,10 +10,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -32,20 +30,16 @@ class RuleControllerTest {
     private RuleRepository ruleRepository;
 
     @Autowired
-    private com.sentinelx.backend.rule.RuleEngine ruleEngine;
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private WebApplicationContext webApplicationContext;
 
     private MockMvc mockMvc;
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        RuleController controller = new RuleController(ruleRepository, ruleEngine);
-        MappingJackson2HttpMessageConverter converter = new MappingJackson2HttpMessageConverter(objectMapper);
-
-        this.mockMvc = MockMvcBuilders.standaloneSetup(controller)
-                .setControllerAdvice(new GlobalExceptionHandler())
-                .setMessageConverters(converter)
-                .build();
+        this.mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
     }
 
     @Test

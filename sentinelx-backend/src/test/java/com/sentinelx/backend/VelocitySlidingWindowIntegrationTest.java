@@ -1,10 +1,10 @@
 package com.sentinelx.backend;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sentinelx.backend.controller.VelocityController;
 import com.sentinelx.backend.dto.DecisionResponse;
 import com.sentinelx.backend.dto.TransactionRequest;
-import com.sentinelx.backend.exception.GlobalExceptionHandler;
+import com.sentinelx.backend.repository.DecisionRepository;
+import com.sentinelx.backend.repository.ReviewQueueRepository;
+import com.sentinelx.backend.repository.TransactionRepository;
 import com.sentinelx.backend.service.RiskService;
 import com.sentinelx.backend.service.VelocityService;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,10 +13,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
 
 import java.math.BigDecimal;
 
@@ -27,11 +27,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * End-to-end integration and HTTP verification test suite for Phase 5 (Redis Velocity Sliding Window).
+ * End-to-end integration and HTTP verification test suite for Sliding Window Velocity and Telemetry endpoints.
  */
 @SpringBootTest
 @ActiveProfiles("test")
-class PhaseFiveVerificationTest {
+class VelocitySlidingWindowIntegrationTest {
 
     @Autowired
     private RiskService riskService;
@@ -40,16 +40,16 @@ class PhaseFiveVerificationTest {
     private VelocityService velocityService;
 
     @Autowired
-    private com.sentinelx.backend.repository.TransactionRepository transactionRepository;
+    private TransactionRepository transactionRepository;
 
     @Autowired
-    private com.sentinelx.backend.repository.DecisionRepository decisionRepository;
+    private DecisionRepository decisionRepository;
 
     @Autowired
-    private com.sentinelx.backend.repository.ReviewQueueRepository reviewQueueRepository;
+    private ReviewQueueRepository reviewQueueRepository;
 
     @Autowired
-    private ObjectMapper objectMapper;
+    private WebApplicationContext webApplicationContext;
 
     private MockMvc mockMvc;
 
@@ -58,14 +58,7 @@ class PhaseFiveVerificationTest {
         reviewQueueRepository.deleteAllInBatch();
         decisionRepository.deleteAllInBatch();
         transactionRepository.deleteAllInBatch();
-
-        VelocityController velocityController = new VelocityController(velocityService);
-        MappingJackson2HttpMessageConverter converter = new MappingJackson2HttpMessageConverter(objectMapper);
-
-        this.mockMvc = MockMvcBuilders.standaloneSetup(velocityController)
-                .setControllerAdvice(new GlobalExceptionHandler())
-                .setMessageConverters(converter)
-                .build();
+        this.mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
     }
 
     @Test
@@ -99,7 +92,7 @@ class PhaseFiveVerificationTest {
 
         assertThat(lastResponse.getFinalScore()).isGreaterThanOrEqualTo(40);
 
-        velocityService.resetUserVelocity(testUserId);
+        velocityService.resetVelocity(testUserId, testIp, testDevice);
     }
 
     @Test

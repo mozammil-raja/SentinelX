@@ -68,4 +68,65 @@ public class RedisConfig {
 
         return new DefaultRedisScript<>(script, Long.class);
     }
+
+    /**
+     * Pre-compiled atomic Lua script recording volume and summing spend in a sliding window:
+     * 1. Evicts stale records older than cutoff (ZREMRANGEBYSCORE)
+     * 2. Inserts formatted member (<txnId>:<amount>:<timestamp>) with current score (ZADD)
+     * 3. Sets TTL on the volume key (EXPIRE)
+     * 4. Aggregates all active transaction amounts in the window and returns formatted sum
+     *
+     * @return Pre-compiled RedisScript bean returning the decimal volume sum
+     */
+    @Bean
+    public RedisScript<String> slidingWindowVolumeRecordScript() {
+        String script =
+                "local key = KEYS[1] " +
+                "local nowMs = tonumber(ARGV[1]) " +
+                "local cutoffMs = tonumber(ARGV[2]) " +
+                "local member = ARGV[3] " +
+                "local ttlSeconds = tonumber(ARGV[4]) " +
+                "redis.call('ZREMRANGEBYSCORE', key, '-inf', cutoffMs) " +
+                "redis.call('ZADD', key, nowMs, member) " +
+                "redis.call('EXPIRE', key, ttlSeconds) " +
+                "local items = redis.call('ZRANGEBYSCORE', key, cutoffMs, '+inf') " +
+                "local total = 0 " +
+                "for _, item in ipairs(items) do " +
+                "  local amt = string.match(item, ':([^:]+):') " +
+                "  if amt then " +
+                "    local num = tonumber(amt) " +
+                "    if num then total = total + num end " +
+                "  end " +
+                "end " +
+                "return string.format('%.2f', total)";
+
+        return new DefaultRedisScript<>(script, String.class);
+    }
+
+    /**
+     * Pre-compiled atomic Lua script querying cumulative volume in a sliding window without inserting:
+     * 1. Evicts stale records older than cutoff (ZREMRANGEBYSCORE)
+     * 2. Aggregates all active transaction amounts in the window and returns formatted sum
+     *
+     * @return Pre-compiled RedisScript bean returning the decimal volume sum
+     */
+    @Bean
+    public RedisScript<String> slidingWindowVolumeQueryScript() {
+        String script =
+                "local key = KEYS[1] " +
+                "local cutoffMs = tonumber(ARGV[1]) " +
+                "redis.call('ZREMRANGEBYSCORE', key, '-inf', cutoffMs) " +
+                "local items = redis.call('ZRANGEBYSCORE', key, cutoffMs, '+inf') " +
+                "local total = 0 " +
+                "for _, item in ipairs(items) do " +
+                "  local amt = string.match(item, ':([^:]+):') " +
+                "  if amt then " +
+                "    local num = tonumber(amt) " +
+                "    if num then total = total + num end " +
+                "  end " +
+                "end " +
+                "return string.format('%.2f', total)";
+
+        return new DefaultRedisScript<>(script, String.class);
+    }
 }

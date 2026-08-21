@@ -9,7 +9,7 @@ import com.sentinelx.backend.repository.RuleRepository;
 import com.sentinelx.backend.repository.UserRepository;
 import com.sentinelx.backend.rule.EvaluationContext;
 import com.sentinelx.backend.rule.RuleResult;
-import com.sentinelx.backend.rule.impl.GeolocationHopRule;
+import com.sentinelx.backend.rule.impl.IpChangeRule;
 import com.sentinelx.backend.service.RiskService;
 import com.sentinelx.backend.service.VelocityService;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,6 +55,9 @@ class DynamicRuleEngineTest {
 
     @Autowired
     private com.sentinelx.backend.rule.RuleEngine ruleEngine;
+
+    @Autowired
+    private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
@@ -137,11 +140,11 @@ class DynamicRuleEngineTest {
     }
 
     @Test
-    @DisplayName("Strategy Evaluation: GeolocationHopRule triggers only when the client IP changes within the time window")
-    void testGeolocationHopStrategy() {
+    @DisplayName("Strategy Evaluation: IpChangeRule triggers only when the client IP changes within the time window")
+    void testIpChangeStrategy() {
         Rule ruleConfig = Rule.builder()
                 .id("RULE_04")
-                .name("Geolocation Hop")
+                .name("Rapid IP Change")
                 .conditionJson("{\"timeWindow\": 1800}")
                 .weight(60)
                 .build();
@@ -153,7 +156,7 @@ class DynamicRuleEngineTest {
                 .ipAddress("203.0.113.99")
                 .build();
 
-        GeolocationHopRule rule = new GeolocationHopRule();
+        IpChangeRule rule = new IpChangeRule(objectMapper);
 
         // Recent transaction (5 minutes ago) from a different IP -> triggers
         Transaction recentTxn = Transaction.builder()
@@ -180,5 +183,123 @@ class DynamicRuleEngineTest {
 
         RuleResult notTriggered = rule.evaluate(hopRequest, user, null, ruleConfig, oldContext);
         assertThat(notTriggered.triggered()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Strategy Evaluation: UserRiskTierRule evaluates customer risk segment dynamically")
+    void testUserRiskTierStrategy() {
+        com.sentinelx.backend.rule.impl.UserRiskTierRule tierRule = new com.sentinelx.backend.rule.impl.UserRiskTierRule(objectMapper);
+        Rule ruleConfig = Rule.builder()
+                .id("RULE_06")
+                .name("User Risk Tier")
+                .weight(30)
+                .build();
+
+        User lowUser = User.builder().id("usr_low").riskSegment("LOW").build();
+        User highUser = User.builder().id("usr_high").riskSegment("HIGH").build();
+        User critUser = User.builder().id("usr_crit").riskSegment("CRITICAL").build();
+
+        TransactionRequest req = TransactionRequest.builder().userId("usr_any").build();
+
+        assertThat(tierRule.evaluate(req, lowUser, null, ruleConfig, null).triggered()).isFalse();
+
+        RuleResult highResult = tierRule.evaluate(req, highUser, null, ruleConfig, null);
+        assertThat(highResult.triggered()).isTrue();
+        assertThat(highResult.scoreContribution()).isEqualTo(30);
+
+        RuleResult critResult = tierRule.evaluate(req, critUser, null, ruleConfig, null);
+        assertThat(critResult.triggered()).isTrue();
+        assertThat(critResult.scoreContribution()).isEqualTo(60);
+    }
+
+    @Test
+    @DisplayName("Risk Policy: New device alone assigns 25 points, remaining in ALLOW (< 30) for low-risk users")
+    void testNewDeviceRuleAllowsSafeFirstTimeUser() {
+        TransactionRequest request = TransactionRequest.builder()
+                .userId("usr_1001")
+                .email("alice@example.com")
+                .amount(new BigDecimal("10.00"))
+                .currency("USD")
+                .merchantId("mer_safe_store")
+                .ipAddress("198.51.100.10")
+                .deviceFingerprint("fp_brand_new_unrecognized")
+                .build();
+
+        DecisionResponse response = riskService.evaluateTransaction(request);
+        assertThat(response.getDecision()).isEqualTo("ALLOW");
+        assertThat(response.getFinalScore()).isEqualTo(25);
+        assertThat(response.getFiredRules()).anyMatch(r -> r.contains("RULE_02") || r.contains("New Device"));
+    }
+
+    @Test
+    @DisplayName("Strategy Evaluation: HighValueTransactionRule normalizes multi-currency amounts against USD baseline")
+    void testHighValueRuleMultiCurrency() {
+        com.sentinelx.backend.rule.impl.HighValueTransactionRule rule = new com.sentinelx.backend.rule.impl.HighValueTransactionRule(objectMapper);
+        Rule ruleConfig = Rule.builder()
+                .id("RULE_03")
+                .name("High-Value Transaction")
+                .conditionJson("{\"threshold\": 10000}")
+                .weight(50)
+                .build();
+
+        User user = User.builder().id("usr_curr").riskSegment("LOW").build();
+
+        // 1. ₹50,000 INR = ~$600 USD -> should NOT trigger ($600 < $10,000)
+        TransactionRequest inrSmall = TransactionRequest.builder()
+                .userId("usr_curr")
+                .amount(new BigDecimal("50000.00"))
+                .currency("INR")
+                .build();
+        assertThat(rule.evaluate(inrSmall, user, null, ruleConfig, null).triggered()).isFalse();
+
+        // 2. ₹900,000 INR = ~$10,800 USD -> SHOULD trigger ($10,800 > $10,000)
+        TransactionRequest inrLarge = TransactionRequest.builder()
+                .userId("usr_curr")
+                .amount(new BigDecimal("900000.00"))
+                .currency("INR")
+                .build();
+        RuleResult inrResult = rule.evaluate(inrLarge, user, null, ruleConfig, null);
+        assertThat(inrResult.triggered()).isTrue();
+        assertThat(inrResult.scoreContribution()).isEqualTo(50);
+        assertThat(inrResult.reason()).contains("INR");
+        assertThat(inrResult.reason()).contains("USD");
+
+        // 3. €10,000 EUR = ~$10,800 USD -> SHOULD trigger
+        TransactionRequest eurLarge = TransactionRequest.builder()
+                .userId("usr_curr")
+                .amount(new BigDecimal("10000.00"))
+                .currency("EUR")
+                .build();
+        assertThat(rule.evaluate(eurLarge, user, null, ruleConfig, null).triggered()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Strategy Evaluation: BlacklistedMerchantRule correctly overrides default list with dynamic condition JSON")
+    void testBlacklistedMerchantRuleCustomConfig() {
+        com.sentinelx.backend.rule.impl.BlacklistedMerchantRule rule = new com.sentinelx.backend.rule.impl.BlacklistedMerchantRule(objectMapper);
+        
+        // Custom merchants: only "mer_custom_flagged"
+        Rule ruleConfig = Rule.builder()
+                .id("RULE_05")
+                .name("Blacklisted Merchant")
+                .conditionJson("{\"merchants\": [\"mer_custom_flagged\"]}")
+                .weight(80)
+                .build();
+
+        User user = User.builder().id("usr_merchant").riskSegment("LOW").build();
+
+        // mer_black_1 is default, but not in custom config -> should NOT trigger
+        TransactionRequest reqDefault = TransactionRequest.builder()
+                .merchantId("mer_black_1")
+                .build();
+        assertThat(rule.evaluate(reqDefault, user, null, ruleConfig, null).triggered()).isFalse();
+
+        // mer_custom_flagged is in custom config -> SHOULD trigger
+        TransactionRequest reqCustom = TransactionRequest.builder()
+                .merchantId("mer_custom_flagged")
+                .build();
+        RuleResult res = rule.evaluate(reqCustom, user, null, ruleConfig, null);
+        assertThat(res.triggered()).isTrue();
+        assertThat(res.scoreContribution()).isEqualTo(80);
     }
 }

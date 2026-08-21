@@ -17,7 +17,11 @@ export const metadata: Metadata = {
   description: "Sub-50ms transaction risk evaluation, dynamic rule execution, and live risk telemetry.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html
       lang="en"

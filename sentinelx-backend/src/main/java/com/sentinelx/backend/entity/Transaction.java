@@ -3,6 +3,7 @@ package com.sentinelx.backend.entity;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
@@ -31,7 +32,7 @@ public class Transaction {
     /**
      * Reference to the account holder initiating the transaction.
      */
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User user;
 
@@ -69,7 +70,7 @@ public class Transaction {
     /**
      * Optional device entity associated with the transaction session.
      */
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "device_id")
     private Device device;
 
@@ -90,6 +91,7 @@ public class Transaction {
     /**
      * Audit timestamp when this transaction row was written to the PostgreSQL database.
      */
-    @Column(name = "created_at", insertable = false, updatable = false)
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;
 }

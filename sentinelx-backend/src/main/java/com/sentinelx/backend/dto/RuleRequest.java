@@ -16,6 +16,11 @@ import lombok.*;
 public class RuleRequest {
 
     /**
+     * Optional rule identifier (e.g. "RULE_01", "RULE_02"). If provided, must match a registered strategy.
+     */
+    private String ruleId;
+
+    /**
      * Human-readable rule title (e.g. "High Velocity (5m)").
      */
     @NotBlank(message = "Rule name is required")

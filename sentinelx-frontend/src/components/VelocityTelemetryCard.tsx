@@ -1,0 +1,139 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { api, VelocityMetrics } from '@/lib/api';
+import { Gauge, Search, CheckCircle2, AlertCircle } from 'lucide-react';
+
+export function VelocityTelemetryCard() {
+  const [lookupUser, setLookupUser] = useState('usr_1001');
+  const [metrics, setMetrics] = useState<VelocityMetrics | null>(null);
+  const [health, setHealth] = useState<{ status: string; engine: string; isRedisAvailable: boolean } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const fetchHealth = useCallback(async () => {
+    try {
+      const res = await api.velocity.getHealth();
+      setHealth(res);
+    } catch (err) {
+      console.error('Failed to get velocity health:', err);
+    }
+  }, []);
+
+  const handleLookup = useCallback(async (userIdToLookup?: string) => {
+    const targetUser = (userIdToLookup ?? lookupUser).trim();
+    if (!targetUser) return;
+    setLoading(true);
+    try {
+      fetchHealth();
+      const data = await api.velocity.getUserVelocity(targetUser, 300);
+      setMetrics(data);
+    } catch (err) {
+      console.error('Velocity lookup failed:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [lookupUser, fetchHealth]);
+
+  useEffect(() => {
+    let ignore = false;
+    async function init() {
+      try {
+        const [healthRes, metricsRes] = await Promise.all([
+          api.velocity.getHealth().catch(() => null),
+          api.velocity.getUserVelocity('usr_1001', 300).catch(() => null)
+        ]);
+        if (!ignore) {
+          if (healthRes) setHealth(healthRes);
+          if (metricsRes) setMetrics(metricsRes);
+        }
+      } catch (err) {
+        if (!ignore) {
+          console.error('Velocity init error:', err);
+        }
+      }
+    }
+    init();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  return (
+    <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-5 space-y-4 backdrop-blur-sm">
+      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+        <div className="flex items-center gap-2">
+          <div className="p-2 rounded-lg bg-cyan-950/80 border border-cyan-700/50 text-cyan-400">
+            <Gauge className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-100">Velocity Telemetry (Redis ZSET)</h2>
+            <p className="text-xs text-slate-400">Sliding window frequency and cumulative spend tracking</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {health?.isRedisAvailable ? (
+            <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-mono bg-emerald-950/80 px-2.5 py-1 rounded-full border border-emerald-800/60">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Redis Online (&lt;1ms)</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 text-xs text-amber-400 font-mono bg-amber-950/80 px-2.5 py-1 rounded-full border border-amber-800/60">
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>PostgreSQL Fallback</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <input
+            type="text"
+            value={lookupUser}
+            onChange={(e) => setLookupUser(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleLookup()}
+            placeholder="Enter User ID (e.g. usr_1001)"
+            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono"
+          />
+        </div>
+        <button
+          onClick={() => handleLookup()}
+          disabled={loading}
+          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition-colors border border-slate-700/60 disabled:opacity-50"
+        >
+          <Search className="w-3.5 h-3.5" />
+          <span>Lookup</span>
+        </button>
+      </div>
+
+      {metrics && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
+          <div className="p-3 rounded-lg bg-slate-950/70 border border-slate-800">
+            <span className="text-[11px] text-slate-400">5-Min Txn Count</span>
+            <div className="text-xl font-bold font-mono text-cyan-400 mt-0.5">
+              {metrics.userVelocityCount ?? 0}
+            </div>
+            <span className="text-[10px] text-slate-500 font-mono">Limit: 5 txns / 300s</span>
+          </div>
+
+          <div className="p-3 rounded-lg bg-slate-950/70 border border-slate-800">
+            <span className="text-[11px] text-slate-400">5-Min Cumulative Spend</span>
+            <div className="text-xl font-bold font-mono text-indigo-400 mt-0.5">
+              ${Number(metrics.userVolumeAmount ?? 0).toFixed(2)}
+            </div>
+            <span className="text-[10px] text-slate-500 font-mono">Sliding sum in RAM</span>
+          </div>
+
+          <div className="p-3 rounded-lg bg-slate-950/70 border border-slate-800 col-span-2 sm:col-span-1">
+            <span className="text-[11px] text-slate-400">Sliding Window</span>
+            <div className="text-xl font-bold font-mono text-slate-200 mt-0.5">
+              300s (5m)
+            </div>
+            <span className="text-[10px] text-slate-500 font-mono">Atomic Lua Script</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

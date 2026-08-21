@@ -3,6 +3,7 @@ package com.sentinelx.backend.entity;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.UpdateTimestamp;
 import java.time.OffsetDateTime;
 
 /**
@@ -13,7 +14,7 @@ import java.time.OffsetDateTime;
  * credential stuffing, and sudden device hopping.</p>
  */
 @Entity
-@Table(name = "devices")
+@Table(name = "devices", uniqueConstraints = @UniqueConstraint(name = "uk_device_user_fingerprint", columnNames = {"user_id", "fingerprint"}))
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -68,6 +69,7 @@ public class Device {
     /**
      * UTC timestamp when this device was last observed executing a transaction.
      */
-    @Column(name = "last_seen", insertable = false, updatable = false)
+    @UpdateTimestamp
+    @Column(name = "last_seen")
     private OffsetDateTime lastSeen;
 }

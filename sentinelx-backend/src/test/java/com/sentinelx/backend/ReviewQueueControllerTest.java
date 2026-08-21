@@ -1,13 +1,11 @@
 package com.sentinelx.backend;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sentinelx.backend.controller.ReviewQueueController;
 import com.sentinelx.backend.dto.ReviewResolutionRequest;
 import com.sentinelx.backend.entity.Device;
 import com.sentinelx.backend.entity.ReviewQueue;
 import com.sentinelx.backend.entity.Transaction;
 import com.sentinelx.backend.entity.User;
-import com.sentinelx.backend.exception.GlobalExceptionHandler;
 import com.sentinelx.backend.repository.DeviceRepository;
 import com.sentinelx.backend.repository.ReviewQueueRepository;
 import com.sentinelx.backend.repository.TransactionRepository;
@@ -18,10 +16,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -55,21 +53,16 @@ class ReviewQueueControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private WebApplicationContext webApplicationContext;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         reviewQueueRepository.deleteAllInBatch();
         transactionRepository.deleteAllInBatch();
-
-        ReviewQueueController controller = new ReviewQueueController(
-                reviewQueueRepository, transactionRepository, deviceRepository);
-        MappingJackson2HttpMessageConverter converter = new MappingJackson2HttpMessageConverter(objectMapper);
-
-        this.mockMvc = MockMvcBuilders.standaloneSetup(controller)
-                .setControllerAdvice(new GlobalExceptionHandler())
-                .setMessageConverters(converter)
-                .build();
+        this.mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
     }
 
     @Test

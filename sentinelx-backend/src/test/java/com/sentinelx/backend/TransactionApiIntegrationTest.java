@@ -1,11 +1,10 @@
 package com.sentinelx.backend;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sentinelx.backend.controller.TransactionController;
 import com.sentinelx.backend.dto.TransactionRequest;
-import com.sentinelx.backend.exception.GlobalExceptionHandler;
+import com.sentinelx.backend.repository.DecisionRepository;
+import com.sentinelx.backend.repository.ReviewQueueRepository;
 import com.sentinelx.backend.repository.TransactionRepository;
-import com.sentinelx.backend.service.RiskService;
 import com.sentinelx.backend.service.VelocityService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -16,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
 
 import java.math.BigDecimal;
 
@@ -30,25 +30,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest
 @ActiveProfiles("test")
-class PhaseThreeVerificationTest {
-
-    @Autowired
-    private RiskService riskService;
+class TransactionApiIntegrationTest {
 
     @Autowired
     private TransactionRepository transactionRepository;
 
     @Autowired
-    private com.sentinelx.backend.repository.DecisionRepository decisionRepository;
+    private DecisionRepository decisionRepository;
 
     @Autowired
-    private com.sentinelx.backend.repository.ReviewQueueRepository reviewQueueRepository;
+    private ReviewQueueRepository reviewQueueRepository;
 
     @Autowired
     private VelocityService velocityService;
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private WebApplicationContext webApplicationContext;
 
     private MockMvc mockMvc;
 
@@ -58,14 +58,7 @@ class PhaseThreeVerificationTest {
         decisionRepository.deleteAllInBatch();
         transactionRepository.deleteAllInBatch();
         velocityService.resetUserVelocity("usr_1001");
-        TransactionController controller = new TransactionController(riskService, transactionRepository);
-        org.springframework.http.converter.json.MappingJackson2HttpMessageConverter converter =
-                new org.springframework.http.converter.json.MappingJackson2HttpMessageConverter(objectMapper);
-
-        this.mockMvc = MockMvcBuilders.standaloneSetup(controller)
-                .setControllerAdvice(new GlobalExceptionHandler())
-                .setMessageConverters(converter)
-                .build();
+        this.mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
     }
 
     @Test
@@ -137,7 +130,6 @@ class PhaseThreeVerificationTest {
     @DisplayName("HTTP 200: Successfully fetch paginated recent transactions")
     void testGetRecentTransactionsHttp() throws Exception {
         mockMvc.perform(get("/api/v1/transactions?page=0&size=10"))
-                .andDo(org.springframework.test.web.servlet.result.MockMvcResultHandlers.print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", notNullValue()));
     }

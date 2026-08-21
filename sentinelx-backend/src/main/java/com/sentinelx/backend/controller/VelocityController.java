@@ -15,7 +15,6 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/v1/velocity")
-@CrossOrigin(origins = "*")
 public class VelocityController {
 
     private final VelocityService velocityService;

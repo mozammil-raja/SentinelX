@@ -1,6 +1,6 @@
 # SentinelX Backend Service
 
-The core high-throughput risk scoring and fraud evaluation engine built on Java 21 and Spring Boot 4.1.0.
+The core high-throughput risk scoring and fraud evaluation engine built on Java 21 and Spring Boot 3.x.
 
 ## Features
 - **Real-Time Risk Decisioning**: Sub-millisecond evaluation with pluggable rules.
@@ -29,3 +29,9 @@ The core high-throughput risk scoring and fraud evaluation engine built on Java 
 - `GET /api/v1/rules/{id}`: Retrieve a single rule.
 - `PUT /api/v1/rules/{id}/toggle`: Toggle a rule's active state.
 - `PUT /api/v1/rules/{id}`: Update rule weight, description, or condition JSON.
+- `POST /api/v1/rules`: Register a new dynamic fraud detection rule.
+- `GET /api/v1/reviews?status=PENDING`: Retrieve pending manual reviews.
+- `POST /api/v1/reviews/{id}/resolve`: Authoritatively resolve review case.
+- `GET /api/v1/decisions/stream`: Server-Sent Events (SSE) live decision stream.
+- `GET /api/v1/velocity/user/{userId}`: Inspect user sliding window velocity.
+- `GET /api/v1/velocity/health`: Redis acceleration engine health check.

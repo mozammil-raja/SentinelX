@@ -8,6 +8,7 @@ import com.sentinelx.backend.repository.*;
 import com.sentinelx.backend.rule.EvaluationContext;
 import com.sentinelx.backend.rule.EvaluationReport;
 import com.sentinelx.backend.rule.RuleEngine;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +22,7 @@ import java.util.UUID;
  * <p>Orchestrates transaction ingestion, user/device profile resolution, dynamic rule engine
  * evaluation, database persistence, and analyst review queue dispatch.</p>
  */
+@Slf4j
 @Service
 public class RiskService {
 
@@ -31,6 +33,7 @@ public class RiskService {
     private final ReviewQueueRepository reviewQueueRepository;
     private final RuleEngine ruleEngine;
     private final VelocityService velocityService;
+    private final DecisionStreamService decisionStreamService;
     private final ObjectMapper objectMapper;
 
     /**
@@ -43,6 +46,7 @@ public class RiskService {
                        ReviewQueueRepository reviewQueueRepository,
                        RuleEngine ruleEngine,
                        VelocityService velocityService,
+                       DecisionStreamService decisionStreamService,
                        ObjectMapper objectMapper) {
         this.userRepository = userRepository;
         this.deviceRepository = deviceRepository;
@@ -51,7 +55,8 @@ public class RiskService {
         this.reviewQueueRepository = reviewQueueRepository;
         this.ruleEngine = ruleEngine;
         this.velocityService = velocityService;
-        this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
+        this.decisionStreamService = decisionStreamService;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -74,13 +79,15 @@ public class RiskService {
             return userRepository.save(newUser);
         });
 
+        if (user.getEmail() != null && request.getEmail() != null && !user.getEmail().equalsIgnoreCase(request.getEmail())) {
+            log.warn("Ingestion payload email '{}' differs from stored account profile email '{}' for user '{}'",
+                    request.getEmail(), user.getEmail(), user.getId());
+        }
+
         // 2. Resolve or dynamically register device profile
         Device device = null;
         if (request.getDeviceFingerprint() != null && !request.getDeviceFingerprint().isBlank()) {
-            List<Device> userDevices = deviceRepository.findByUserId(user.getId());
-            device = userDevices.stream()
-                    .filter(d -> request.getDeviceFingerprint().equals(d.getFingerprint()))
-                    .findFirst()
+            device = deviceRepository.findByUserIdAndFingerprint(user.getId(), request.getDeviceFingerprint())
                     .orElse(null);
 
             if (device == null) {
@@ -97,14 +104,11 @@ public class RiskService {
             }
         }
 
-        // 3. Pre-fetch shared evaluation context (bounded historical user transactions)
+        // 3. Pre-fetch targeted evaluation context (O(1) last historical transaction check for IP changes)
         Transaction lastTransaction = transactionRepository.findTop1ByUserIdOrderByTimestampDesc(user.getId()).orElse(null);
-        OffsetDateTime oneHourCutoff = OffsetDateTime.now(java.time.ZoneOffset.UTC).minusHours(1);
-        List<Transaction> userHistory = transactionRepository.findRecentByUserIdSince(user.getId(), oneHourCutoff);
-        
         EvaluationContext context = EvaluationContext.builder()
                 .lastTransaction(lastTransaction)
-                .recentTransactions(userHistory)
+                .recentTransactions(lastTransaction != null ? List.of(lastTransaction) : List.of())
                 .build();
 
         // 4. Execute dynamic rule strategy scoring
@@ -135,7 +139,7 @@ public class RiskService {
                 .ipAddress(request.getIpAddress())
                 .device(device)
                 .status(transactionStatus)
-                .timestamp(OffsetDateTime.now())
+                .timestamp(OffsetDateTime.now(java.time.ZoneOffset.UTC))
                 .build();
 
         transaction = transactionRepository.save(transaction);
@@ -173,13 +177,11 @@ public class RiskService {
             reviewQueueRepository.save(queueItem);
         }
 
-        // 8. Asynchronously / In-Memory update Redis multi-dimensional velocity metrics
-        if (velocityService != null) {
-            velocityService.recordTransactionMetrics(request, transaction.getId());
-        }
+        // 8. Update Redis multi-dimensional velocity metrics
+        velocityService.recordTransactionMetrics(request, transaction.getId());
 
-        // 9. Return synchronous API response
-        return DecisionResponse.builder()
+        // 9. Build synchronous API response and broadcast to real-time SSE dashboard subscribers
+        DecisionResponse response = DecisionResponse.builder()
                 .decisionId(decision.getId())
                 .transactionId(transaction.getId())
                 .userId(user.getId())
@@ -187,7 +189,13 @@ public class RiskService {
                 .decision(report.getDecision())
                 .firedRules(report.getFiredRuleExplanations())
                 .evaluationTimeMs(totalLatency)
-                .timestamp(OffsetDateTime.now())
+                .timestamp(OffsetDateTime.now(java.time.ZoneOffset.UTC))
                 .build();
+
+        if (decisionStreamService != null) {
+            decisionStreamService.broadcast(response);
+        }
+
+        return response;
     }
 }

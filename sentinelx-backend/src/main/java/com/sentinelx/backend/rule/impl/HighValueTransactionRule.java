@@ -9,6 +9,7 @@ import com.sentinelx.backend.entity.User;
 import com.sentinelx.backend.rule.EvaluationContext;
 import com.sentinelx.backend.rule.RiskRule;
 import com.sentinelx.backend.rule.RuleResult;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -17,8 +18,9 @@ import java.math.BigDecimal;
  * Strategy implementation for {@code RULE_03: High-Value Transaction}.
  * 
  * <p>Parses {@code condition_json} for {@code {"threshold": <amount>}} and penalizes transactions
- * exceeding the monetary threshold.</p>
+ * exceeding the configured monetary threshold (default $10,000).</p>
  */
+@Slf4j
 @Component
 public class HighValueTransactionRule implements RiskRule {
 
@@ -27,7 +29,7 @@ public class HighValueTransactionRule implements RiskRule {
     private final ObjectMapper objectMapper;
 
     public HighValueTransactionRule(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -35,28 +37,54 @@ public class HighValueTransactionRule implements RiskRule {
         return RULE_ID;
     }
 
+    private static final java.util.Map<String, BigDecimal> USD_EXCHANGE_RATES = java.util.Map.of(
+            "USD", BigDecimal.ONE,
+            "EUR", new BigDecimal("1.08"),
+            "GBP", new BigDecimal("1.27"),
+            "INR", new BigDecimal("0.012")
+    );
+
     @Override
     public RuleResult evaluate(TransactionRequest request, User user, Device device, Rule ruleConfig, EvaluationContext context) {
-        BigDecimal threshold = DEFAULT_THRESHOLD;
+        BigDecimal thresholdUsd = DEFAULT_THRESHOLD;
 
         try {
             if (ruleConfig.getConditionJson() != null && !ruleConfig.getConditionJson().isBlank()) {
                 JsonNode root = objectMapper.readTree(ruleConfig.getConditionJson());
                 if (root.has("threshold")) {
-                    threshold = new BigDecimal(root.get("threshold").asText());
+                    thresholdUsd = new BigDecimal(root.get("threshold").asText());
                 }
             }
-        } catch (Exception ignored) {
-            // Use default threshold if parsing fails
+        } catch (Exception e) {
+            log.warn("Failed to parse condition_json for rule {}: {}. Using default threshold {}.", ruleConfig.getId(), e.getMessage(), thresholdUsd);
         }
 
-        if (request.getAmount() != null && request.getAmount().compareTo(threshold) > 0) {
+        if (request.getAmount() == null) {
+            return RuleResult.notTriggered(ruleConfig.getId(), ruleConfig.getName());
+        }
+
+        String currency = (request.getCurrency() != null && !request.getCurrency().isBlank()) 
+                ? request.getCurrency().toUpperCase() 
+                : "USD";
+
+        BigDecimal rate = USD_EXCHANGE_RATES.getOrDefault(currency, BigDecimal.ONE);
+        BigDecimal amountInUsd = request.getAmount().multiply(rate);
+
+        if (amountInUsd.compareTo(thresholdUsd) > 0) {
+            String explanation = "USD".equals(currency)
+                    ? String.format("%s: %s: Amount %s USD exceeds threshold %s USD (+%d pts)",
+                            ruleConfig.getId(), ruleConfig.getName(), request.getAmount().toPlainString(),
+                            thresholdUsd.toPlainString(), ruleConfig.getWeight())
+                    : String.format("%s: %s: Amount %s %s (~$%s USD) exceeds threshold %s USD (+%d pts)",
+                            ruleConfig.getId(), ruleConfig.getName(), request.getAmount().toPlainString(),
+                            currency, amountInUsd.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString(),
+                            thresholdUsd.toPlainString(), ruleConfig.getWeight());
+
             return RuleResult.triggered(
                     ruleConfig.getId(),
                     ruleConfig.getName(),
                     ruleConfig.getWeight(),
-                    String.format("%s: %s: Amount %s exceeds threshold %s (+%d pts)",
-                            ruleConfig.getId(), ruleConfig.getName(), request.getAmount().toPlainString(), threshold.toPlainString(), ruleConfig.getWeight())
+                    explanation
             );
         }
 

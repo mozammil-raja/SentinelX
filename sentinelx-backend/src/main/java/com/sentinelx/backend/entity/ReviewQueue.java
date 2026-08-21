@@ -3,6 +3,7 @@ package com.sentinelx.backend.entity;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 import java.time.OffsetDateTime;
 
 /**
@@ -31,14 +32,14 @@ public class ReviewQueue {
     /**
      * One-to-one relationship with the transaction under investigation.
      */
-    @OneToOne(fetch = FetchType.EAGER)
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "transaction_id", unique = true)
     private Transaction transaction;
 
     /**
      * The initial algorithmic decision that routed this transaction into the review queue.
      */
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "decision_id")
     private Decision decision;
 
@@ -71,6 +72,7 @@ public class ReviewQueue {
     /**
      * UTC timestamp when the review item was enqueued.
      */
-    @Column(name = "created_at", insertable = false, updatable = false)
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;
 }

@@ -3,18 +3,18 @@ package com.sentinelx.backend.service;
 import com.sentinelx.backend.dto.TransactionRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 /**
- * Service providing high-throughput, sub-millisecond in-memory velocity tracking
+ * Service providing low-latency Redis-backed velocity tracking
  * using Redis Sorted Sets (ZSET) and atomic Lua scripts.
  *
  * <p>Employs the <b>Sliding Window Log</b> pattern to provide exact transaction count
@@ -28,13 +28,13 @@ public class VelocityService {
     public static final String KEY_PREFIX_USER = "sentinelx:velocity:user:";
     public static final String KEY_PREFIX_DEVICE = "sentinelx:velocity:device:";
     public static final String KEY_PREFIX_IP = "sentinelx:velocity:ip:";
-    public static final String KEY_PREFIX_CARD = "sentinelx:velocity:card:";
-    public static final String KEY_PREFIX_MERCHANT = "sentinelx:velocity:merchant:";
     public static final String KEY_PREFIX_VOLUME_USER = "sentinelx:velocity:volume:user:";
 
     private final StringRedisTemplate redisTemplate;
     private final RedisScript<Long> slidingWindowRecordScript;
     private final RedisScript<Long> slidingWindowQueryScript;
+    private final RedisScript<String> slidingWindowVolumeRecordScript;
+    private final RedisScript<String> slidingWindowVolumeQueryScript;
     private final com.sentinelx.backend.repository.TransactionRepository transactionRepository;
 
     /**
@@ -43,16 +43,22 @@ public class VelocityService {
      * @param redisTemplate Spring StringRedisTemplate
      * @param slidingWindowRecordScript Atomic Lua script for recording and sliding count
      * @param slidingWindowQueryScript Atomic Lua script for querying sliding count
+     * @param slidingWindowVolumeRecordScript Atomic Lua script for recording and sliding volume sum
+     * @param slidingWindowVolumeQueryScript Atomic Lua script for querying sliding volume sum
      * @param transactionRepository JPA Transaction repository for fallback calculations
      */
     public VelocityService(
             StringRedisTemplate redisTemplate,
             RedisScript<Long> slidingWindowRecordScript,
             RedisScript<Long> slidingWindowQueryScript,
+            RedisScript<String> slidingWindowVolumeRecordScript,
+            RedisScript<String> slidingWindowVolumeQueryScript,
             com.sentinelx.backend.repository.TransactionRepository transactionRepository) {
         this.redisTemplate = redisTemplate;
         this.slidingWindowRecordScript = slidingWindowRecordScript;
         this.slidingWindowQueryScript = slidingWindowQueryScript;
+        this.slidingWindowVolumeRecordScript = slidingWindowVolumeRecordScript;
+        this.slidingWindowVolumeQueryScript = slidingWindowVolumeQueryScript;
         this.transactionRepository = transactionRepository;
     }
 
@@ -90,23 +96,30 @@ public class VelocityService {
 
     /**
      * Queries the current transaction count for a user in the sliding window without recording a new event.
-     * Falls back automatically to PostgreSQL if Redis is unavailable.
+     * Falls back automatically to PostgreSQL if Redis is unavailable or unpopulated.
      *
      * @param userId Unique customer identifier
      * @param windowSeconds Sliding time window in seconds
      * @return Active transaction count in the window
      */
     public int getUserVelocity(String userId, int windowSeconds) {
-        if (!isAvailable()) {
-            if (transactionRepository != null && userId != null) {
-                java.time.OffsetDateTime cutoff = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC).minusSeconds(windowSeconds);
-                List<com.sentinelx.backend.entity.Transaction> txns = transactionRepository.findRecentByUserIdSince(userId, cutoff);
-                return txns.size();
-            }
+        if (userId == null) {
             return 0;
         }
         String key = KEY_PREFIX_USER + userId;
-        return executeQueryScript(key, windowSeconds);
+        int redisCount = executeQueryScript(key, windowSeconds);
+
+        if (redisCount >= 0) {
+            return redisCount;
+        }
+
+        // Graceful High-Availability Fallback: Query PostgreSQL transaction history
+        if (transactionRepository != null) {
+            OffsetDateTime cutoff = OffsetDateTime.now(ZoneOffset.UTC).minusSeconds(windowSeconds);
+            List<com.sentinelx.backend.entity.Transaction> txns = transactionRepository.findByUserIdAndTimestampGreaterThanEqualOrderByTimestampDesc(userId, cutoff);
+            return txns.size();
+        }
+        return 0;
     }
 
     /**
@@ -130,14 +143,15 @@ public class VelocityService {
      *
      * @param fingerprint Device fingerprint
      * @param windowSeconds Sliding time window in seconds
-     * @return Active count in window, or -1 if Redis is unavailable
+     * @return Active count in window, or 0 if Redis is unpopulated/unavailable
      */
     public int getDeviceVelocity(String fingerprint, int windowSeconds) {
         if (fingerprint == null || fingerprint.isBlank()) {
             return 0;
         }
         String key = KEY_PREFIX_DEVICE + fingerprint;
-        return executeQueryScript(key, windowSeconds);
+        int count = executeQueryScript(key, windowSeconds);
+        return Math.max(0, count);
     }
 
     /**
@@ -161,18 +175,19 @@ public class VelocityService {
      *
      * @param ipAddress Client IP address
      * @param windowSeconds Sliding time window in seconds
-     * @return Active count in window, or -1 if Redis is unavailable
+     * @return Active count in window, or 0 if Redis is unpopulated/unavailable
      */
     public int getIpVelocity(String ipAddress, int windowSeconds) {
         if (ipAddress == null || ipAddress.isBlank()) {
             return 0;
         }
         String key = KEY_PREFIX_IP + ipAddress;
-        return executeQueryScript(key, windowSeconds);
+        int count = executeQueryScript(key, windowSeconds);
+        return Math.max(0, count);
     }
 
     /**
-     * Records all multi-dimensional velocity metrics (User, Device, IP, Card BIN, Merchant, Volume)
+     * Records all multi-dimensional velocity metrics (User, Device, IP, Volume)
      * for an evaluated transaction into Redis.
      *
      * @param request The transaction request payload
@@ -180,7 +195,6 @@ public class VelocityService {
      */
     public void recordTransactionMetrics(TransactionRequest request, String txnId) {
         try {
-            long nowMs = Instant.now().toEpochMilli();
             int defaultWindow = 3600; // 1 hour retention for sliding checks
 
             // 1. Record User Velocity
@@ -198,30 +212,49 @@ public class VelocityService {
                 recordAndGetIpVelocity(request.getIpAddress(), txnId, defaultWindow);
             }
 
-            // 4. Record Card BIN Velocity
-            if (request.getCardBin() != null) {
-                String cardKey = KEY_PREFIX_CARD + request.getCardBin();
-                executeRecordScript(cardKey, txnId, defaultWindow);
-            }
-
-            // 5. Record Merchant Velocity
-            if (request.getMerchantId() != null) {
-                String merKey = KEY_PREFIX_MERCHANT + request.getMerchantId();
-                executeRecordScript(merKey, txnId, defaultWindow);
-            }
-
-            // 6. Record Volume Velocity (User spend accumulation)
+            // 4. Record Volume Velocity (User spend accumulation)
             if (request.getUserId() != null && request.getAmount() != null) {
-                String volumeKey = KEY_PREFIX_VOLUME_USER + request.getUserId();
-                String volumeMember = txnId + ":" + request.getAmount().toPlainString() + ":" + nowMs;
-                long cutoffMs = nowMs - (defaultWindow * 1000L);
-
-                redisTemplate.opsForZSet().removeRangeByScore(volumeKey, Double.NEGATIVE_INFINITY, cutoffMs);
-                redisTemplate.opsForZSet().add(volumeKey, volumeMember, nowMs);
-                redisTemplate.expire(volumeKey, java.time.Duration.ofSeconds(defaultWindow + 60));
+                recordAndGetUserVolumeVelocity(request.getUserId(), txnId, request.getAmount(), defaultWindow);
             }
         } catch (Exception e) {
-            log.warn("Failed to asynchronously update Redis velocity metrics for txn {}: {}", txnId, e.getMessage());
+            log.warn("Failed to update Redis velocity metrics for txn {}: {}", txnId, e.getMessage());
+        }
+    }
+
+    /**
+     * Atomically records a transaction amount for a user and calculates the updated cumulative volume in the sliding window.
+     *
+     * @param userId Unique customer identifier
+     * @param txnId Transaction identifier
+     * @param amount Transaction amount
+     * @param windowSeconds Sliding time window in seconds
+     * @return Cumulative volume in window, or transaction amount as baseline if Redis is unavailable
+     */
+    public BigDecimal recordAndGetUserVolumeVelocity(String userId, String txnId, BigDecimal amount, int windowSeconds) {
+        if (userId == null || amount == null) {
+            return BigDecimal.ZERO;
+        }
+
+        String volumeKey = KEY_PREFIX_VOLUME_USER + userId;
+        try {
+            long nowMs = Instant.now().toEpochMilli();
+            long cutoffMs = nowMs - (windowSeconds * 1000L);
+            String member = (txnId != null ? txnId : "ev") + ":" + amount.toPlainString() + ":" + nowMs;
+            int ttlSeconds = windowSeconds + 60;
+
+            String result = redisTemplate.execute(
+                    slidingWindowVolumeRecordScript,
+                    Collections.singletonList(volumeKey),
+                    String.valueOf(nowMs),
+                    String.valueOf(cutoffMs),
+                    member,
+                    String.valueOf(ttlSeconds)
+            );
+
+            return (result != null && !result.isBlank()) ? new BigDecimal(result) : getUserVolumeVelocity(userId, windowSeconds);
+        } catch (Exception e) {
+            log.warn("Redis volume record execution failed for key {}: {}. Will fallback to database history.", volumeKey, e.getMessage());
+            return getUserVolumeVelocity(userId, windowSeconds);
         }
     }
 
@@ -234,55 +267,41 @@ public class VelocityService {
      * @return Sum of transaction amounts within the window, or BigDecimal.ZERO if empty/unavailable
      */
     public BigDecimal getUserVolumeVelocity(String userId, int windowSeconds) {
-        if (!isAvailable()) {
-            if (transactionRepository != null && userId != null) {
-                java.time.OffsetDateTime cutoff = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC).minusSeconds(windowSeconds);
-                List<com.sentinelx.backend.entity.Transaction> txns = transactionRepository.findRecentByUserIdSince(userId, cutoff);
-                BigDecimal sum = BigDecimal.ZERO;
-                for (com.sentinelx.backend.entity.Transaction t : txns) {
-                    if (t.getAmount() != null) {
-                        sum = sum.add(t.getAmount());
-                    }
-                }
-                return sum;
-            }
+        if (userId == null) {
             return BigDecimal.ZERO;
         }
 
+        String volumeKey = KEY_PREFIX_VOLUME_USER + userId;
         try {
-            String volumeKey = KEY_PREFIX_VOLUME_USER + userId;
             long nowMs = Instant.now().toEpochMilli();
             long cutoffMs = nowMs - (windowSeconds * 1000L);
 
-            // Clean stale volume entries
-            redisTemplate.opsForZSet().removeRangeByScore(volumeKey, Double.NEGATIVE_INFINITY, cutoffMs);
+            String result = redisTemplate.execute(
+                    slidingWindowVolumeQueryScript,
+                    Collections.singletonList(volumeKey),
+                    String.valueOf(cutoffMs)
+            );
 
-            // Query active elements in window
-            Set<ZSetOperations.TypedTuple<String>> tuples = redisTemplate.opsForZSet()
-                    .rangeByScoreWithScores(volumeKey, cutoffMs, Double.POSITIVE_INFINITY);
-
-            if (tuples == null || tuples.isEmpty()) {
-                return BigDecimal.ZERO;
+            if (result != null && !result.isBlank()) {
+                return new BigDecimal(result);
             }
+        } catch (Exception e) {
+            log.warn("Redis volume velocity calculation failed for user {}: {}. Falling back to PostgreSQL.", userId, e.getMessage());
+        }
 
-            BigDecimal total = BigDecimal.ZERO;
-            for (ZSetOperations.TypedTuple<String> tuple : tuples) {
-                String val = tuple.getValue();
-                if (val != null) {
-                    String[] parts = val.split(":");
-                    if (parts.length >= 2) {
-                        try {
-                            total = total.add(new BigDecimal(parts[1]));
-                        } catch (NumberFormatException ignored) {
-                        }
-                    }
+        // Graceful High-Availability Fallback: Query PostgreSQL transaction history
+        if (transactionRepository != null) {
+            OffsetDateTime cutoff = OffsetDateTime.now(ZoneOffset.UTC).minusSeconds(windowSeconds);
+            List<com.sentinelx.backend.entity.Transaction> txns = transactionRepository.findByUserIdAndTimestampGreaterThanEqualOrderByTimestampDesc(userId, cutoff);
+            BigDecimal sum = BigDecimal.ZERO;
+            for (com.sentinelx.backend.entity.Transaction t : txns) {
+                if (t.getAmount() != null) {
+                    sum = sum.add(t.getAmount());
                 }
             }
-            return total;
-        } catch (Exception e) {
-            log.warn("Failed to calculate user volume velocity for {}: {}", userId, e.getMessage());
-            return BigDecimal.ZERO;
+            return sum;
         }
+        return BigDecimal.ZERO;
     }
 
     /**
@@ -294,6 +313,29 @@ public class VelocityService {
         try {
             redisTemplate.delete(KEY_PREFIX_USER + userId);
             redisTemplate.delete(KEY_PREFIX_VOLUME_USER + userId);
+        } catch (Exception ignored) {
+        }
+    }
+
+    /**
+     * Clears all dimensional velocity keys for a user, device, and IP address.
+     *
+     * @param userId Customer identifier
+     * @param ipAddress Client IP address
+     * @param deviceFingerprint Device fingerprint
+     */
+    public void resetVelocity(String userId, String ipAddress, String deviceFingerprint) {
+        try {
+            if (userId != null) {
+                redisTemplate.delete(KEY_PREFIX_USER + userId);
+                redisTemplate.delete(KEY_PREFIX_VOLUME_USER + userId);
+            }
+            if (ipAddress != null) {
+                redisTemplate.delete(KEY_PREFIX_IP + ipAddress);
+            }
+            if (deviceFingerprint != null) {
+                redisTemplate.delete(KEY_PREFIX_DEVICE + deviceFingerprint);
+            }
         } catch (Exception ignored) {
         }
     }

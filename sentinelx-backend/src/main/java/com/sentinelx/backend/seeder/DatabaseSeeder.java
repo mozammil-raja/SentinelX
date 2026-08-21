@@ -8,18 +8,19 @@ import com.sentinelx.backend.repository.DeviceRepository;
 import com.sentinelx.backend.repository.RuleRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
-import java.util.List;
 
 /**
- * Automated database seeder that runs on application startup via {@link CommandLineRunner}.
+ * Automated database seeder that runs on application startup in development and test environments.
  * 
- * <p>Populates the local PostgreSQL database with baseline mock users (with varied risk tiers),
- * trusted device fingerprints, and five core production-ready fraud detection rules.
- * All seed operations are idempotent to prevent duplicate row insertions on subsequent restarts.</p>
+ * <p>Populates the local database with baseline mock users (with varied risk tiers),
+ * trusted device fingerprints, and core production-ready fraud detection rules.
+ * All seed operations are deterministic and check entity existence before saving.</p>
  */
 @Slf4j
 @Component
+@Profile({"dev", "local", "test", "default"})
 public class DatabaseSeeder implements CommandLineRunner {
 
     private final UserRepository userRepository;
@@ -52,23 +53,24 @@ public class DatabaseSeeder implements CommandLineRunner {
      * Seeds mock user accounts representing distinct risk segments (LOW, MEDIUM, HIGH).
      */
     private void seedUsers() {
-        if (userRepository.count() == 0) {
-            User alice = User.builder().id("usr_1001").email("alice@example.com").riskSegment("LOW").build();
-            User bob = User.builder().id("usr_1002").email("bob@example.com").riskSegment("MEDIUM").build();
-            User charlie = User.builder().id("usr_1003").email("charlie@example.com").riskSegment("HIGH").build();
-            userRepository.saveAll(List.of(alice, bob, charlie));
-            log.info("Mock Users Seeded.");
+        if (!userRepository.existsById("usr_1001")) {
+            userRepository.save(User.builder().id("usr_1001").email("alice@example.com").riskSegment("LOW").build());
         }
+        if (!userRepository.existsById("usr_1002")) {
+            userRepository.save(User.builder().id("usr_1002").email("bob@example.com").riskSegment("MEDIUM").build());
+        }
+        if (!userRepository.existsById("usr_1003")) {
+            userRepository.save(User.builder().id("usr_1003").email("charlie@example.com").riskSegment("HIGH").build());
+        }
+        log.info("Mock Users Seeded.");
     }
 
     /**
      * Seeds initial trusted hardware device profiles for mock users Alice and Bob.
      */
     private void seedDevices() {
-        if (deviceRepository.count() == 0) {
+        if (!deviceRepository.existsById("dev_alice_phone")) {
             User alice = userRepository.findById("usr_1001").orElse(null);
-            User bob = userRepository.findById("usr_1002").orElse(null);
-            
             if (alice != null) {
                 Device dev1 = Device.builder()
                         .id("dev_alice_phone")
@@ -81,7 +83,10 @@ public class DatabaseSeeder implements CommandLineRunner {
                         .build();
                 deviceRepository.save(dev1);
             }
-            
+        }
+
+        if (!deviceRepository.existsById("dev_bob_laptop")) {
+            User bob = userRepository.findById("usr_1002").orElse(null);
             if (bob != null) {
                 Device dev2 = Device.builder()
                         .id("dev_bob_laptop")
@@ -94,21 +99,22 @@ public class DatabaseSeeder implements CommandLineRunner {
                         .build();
                 deviceRepository.save(dev2);
             }
-            log.info("Mock Devices Seeded.");
         }
+        log.info("Mock Devices Seeded.");
     }
 
     /**
-     * Seeds 5 core baseline fraud detection rules:
+     * Seeds core baseline fraud detection rules:
      * 1. RULE_01: High Velocity (5m) (weight: 40)
-     * 2. RULE_02: New Device (weight: 30)
+     * 2. RULE_02: New Device (weight: 25)
      * 3. RULE_03: High-Value Transaction (weight: 50)
-     * 4. RULE_04: Geolocation Hop (weight: 60)
+     * 4. RULE_04: Rapid IP Change (weight: 60)
      * 5. RULE_05: Blacklisted Merchant (weight: 80)
+     * 6. RULE_06: User Risk Tier (weight: 30)
      */
     private void seedRules() {
-        if (ruleRepository.count() == 0) {
-            Rule r1 = Rule.builder()
+        if (!ruleRepository.existsById("RULE_01")) {
+            ruleRepository.save(Rule.builder()
                     .id("RULE_01")
                     .name("High Velocity (5m)")
                     .description("Triggers if user makes more than 5 transactions in 5 minutes")
@@ -117,20 +123,24 @@ public class DatabaseSeeder implements CommandLineRunner {
                     .version(1)
                     .isActive(true)
                     .createdBy("system")
-                    .build();
+                    .build());
+        }
 
-            Rule r2 = Rule.builder()
+        if (!ruleRepository.existsById("RULE_02")) {
+            ruleRepository.save(Rule.builder()
                     .id("RULE_02")
                     .name("New Device")
                     .description("Triggers if the device footprint is unrecognized for this user")
                     .conditionJson("{\"trustedOnly\": true}")
-                    .weight(30)
+                    .weight(25)
                     .version(1)
                     .isActive(true)
                     .createdBy("system")
-                    .build();
+                    .build());
+        }
 
-            Rule r3 = Rule.builder()
+        if (!ruleRepository.existsById("RULE_03")) {
+            ruleRepository.save(Rule.builder()
                     .id("RULE_03")
                     .name("High-Value Transaction")
                     .description("Triggers if transaction amount exceeds $10,000")
@@ -139,20 +149,24 @@ public class DatabaseSeeder implements CommandLineRunner {
                     .version(1)
                     .isActive(true)
                     .createdBy("system")
-                    .build();
+                    .build());
+        }
 
-            Rule r4 = Rule.builder()
+        if (!ruleRepository.existsById("RULE_04")) {
+            ruleRepository.save(Rule.builder()
                     .id("RULE_04")
-                    .name("Geolocation Hop")
-                    .description("Triggers if transaction IP country differs from last seen country in 30 minutes")
+                    .name("Rapid IP Change")
+                    .description("Triggers if transaction IP address differs from last seen IP within time window (rapid proxy/VPN hop)")
                     .conditionJson("{\"timeWindow\": 1800}")
                     .weight(60)
                     .version(1)
                     .isActive(true)
                     .createdBy("system")
-                    .build();
+                    .build());
+        }
 
-            Rule r5 = Rule.builder()
+        if (!ruleRepository.existsById("RULE_05")) {
+            ruleRepository.save(Rule.builder()
                     .id("RULE_05")
                     .name("Blacklisted Merchant")
                     .description("Triggers if merchant is flagged as high-risk/blacklisted")
@@ -161,10 +175,21 @@ public class DatabaseSeeder implements CommandLineRunner {
                     .version(1)
                     .isActive(true)
                     .createdBy("system")
-                    .build();
-
-            ruleRepository.saveAll(List.of(r1, r2, r3, r4, r5));
-            log.info("Mock Rules Seeded.");
+                    .build());
         }
+
+        if (!ruleRepository.existsById("RULE_06")) {
+            ruleRepository.save(Rule.builder()
+                    .id("RULE_06")
+                    .name("User Risk Tier")
+                    .description("Applies risk penalty for users in elevated risk segments (HIGH, CRITICAL)")
+                    .conditionJson("{\"highWeight\": 30, \"criticalWeight\": 60}")
+                    .weight(30)
+                    .version(1)
+                    .isActive(true)
+                    .createdBy("system")
+                    .build());
+        }
+        log.info("Mock Rules Seeded.");
     }
 }

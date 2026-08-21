@@ -3,6 +3,8 @@ package com.sentinelx.backend.entity;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 import java.time.OffsetDateTime;
 
 /**
@@ -48,13 +50,15 @@ public class User {
      * Timestamp when the user account was registered in UTC.
      * Managed by the database during row creation.
      */
-    @Column(name = "created_at", insertable = false, updatable = false)
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;
 
     /**
      * Timestamp when the user record was last modified in UTC.
      * Managed by the database on update triggers.
      */
-    @Column(name = "updated_at", insertable = false, updatable = false)
+    @UpdateTimestamp
+    @Column(name = "updated_at")
     private OffsetDateTime updatedAt;
 }

@@ -1,20 +1,15 @@
 package com.sentinelx.backend.controller;
 
+import com.sentinelx.backend.dto.ReviewQueueResponse;
 import com.sentinelx.backend.dto.ReviewResolutionRequest;
-import com.sentinelx.backend.entity.Device;
 import com.sentinelx.backend.entity.ReviewQueue;
-import com.sentinelx.backend.entity.Transaction;
-import com.sentinelx.backend.exception.ResourceNotFoundException;
-import com.sentinelx.backend.repository.DeviceRepository;
-import com.sentinelx.backend.repository.ReviewQueueRepository;
-import com.sentinelx.backend.repository.TransactionRepository;
+import com.sentinelx.backend.service.ReviewQueueService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * REST controller for managing human fraud analyst review queue cases.
@@ -25,49 +20,39 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/v1/reviews")
-@CrossOrigin(origins = "*")
 public class ReviewQueueController {
 
-    private final ReviewQueueRepository reviewQueueRepository;
-    private final TransactionRepository transactionRepository;
-    private final DeviceRepository deviceRepository;
+    private final ReviewQueueService reviewQueueService;
 
-    public ReviewQueueController(ReviewQueueRepository reviewQueueRepository,
-                                 TransactionRepository transactionRepository,
-                                 DeviceRepository deviceRepository) {
-        this.reviewQueueRepository = reviewQueueRepository;
-        this.transactionRepository = transactionRepository;
-        this.deviceRepository = deviceRepository;
+    public ReviewQueueController(ReviewQueueService reviewQueueService) {
+        this.reviewQueueService = reviewQueueService;
     }
 
     /**
      * Retrieves all review queue cases, optionally filtered by status (e.g. PENDING).
      *
      * @param status Optional filter: "PENDING", "APPROVED", "REJECTED"
-     * @return List of matching ReviewQueue items ordered newest first
+     * @return List of matching ReviewQueue presentation DTOs ordered newest first
      */
     @GetMapping
-    public ResponseEntity<List<ReviewQueue>> getReviewQueue(@RequestParam(required = false) String status) {
-        List<ReviewQueue> results;
-        if (status != null && !status.isBlank()) {
-            results = reviewQueueRepository.findByStatusOrderByCreatedAtDesc(status.toUpperCase());
-        } else {
-            results = reviewQueueRepository.findAllByOrderByCreatedAtDesc();
-        }
-        return ResponseEntity.ok(results);
+    public ResponseEntity<List<ReviewQueueResponse>> getReviewQueue(@RequestParam(required = false) String status) {
+        List<ReviewQueue> results = reviewQueueService.getReviewQueue(status);
+        List<ReviewQueueResponse> responses = results.stream()
+                .map(ReviewQueueResponse::fromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(responses);
     }
 
     /**
      * Retrieves a specific review queue case by ID.
      *
      * @param id Unique review queue identifier
-     * @return ReviewQueue item
+     * @return ReviewQueue presentation DTO
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ReviewQueue> getReviewById(@PathVariable Long id) {
-        ReviewQueue item = reviewQueueRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Review queue item not found with ID: " + id));
-        return ResponseEntity.ok(item);
+    public ResponseEntity<ReviewQueueResponse> getReviewById(@PathVariable Long id) {
+        ReviewQueue item = reviewQueueService.getReviewById(id);
+        return ResponseEntity.ok(ReviewQueueResponse.fromEntity(item));
     }
 
     /**
@@ -76,38 +61,13 @@ public class ReviewQueueController {
      *
      * @param id      Review queue ID
      * @param request Validated resolution request payload
-     * @return Updated ReviewQueue item
+     * @return Updated ReviewQueue presentation DTO
      */
     @PostMapping("/{id}/resolve")
-    @Transactional
-    public ResponseEntity<ReviewQueue> resolveReview(
+    public ResponseEntity<ReviewQueueResponse> resolveReview(
             @PathVariable Long id,
             @Valid @RequestBody ReviewResolutionRequest request) {
-        ReviewQueue item = reviewQueueRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Review queue item not found with ID: " + id));
-
-        String resolvedStatus = request.getStatus().toUpperCase();
-        item.setStatus(resolvedStatus);
-        item.setReviewerId(request.getReviewerId());
-        item.setReviewerNotes(request.getReviewerNotes());
-        item.setReviewedAt(OffsetDateTime.now());
-
-        // Update underlying transaction status
-        Transaction transaction = item.getTransaction();
-        if (transaction != null) {
-            String txnStatus = "APPROVED".equals(resolvedStatus) ? "APPROVED" : "BLOCKED";
-            transaction.setStatus(txnStatus);
-            transactionRepository.save(transaction);
-
-            // If approved, elevate device trust
-            Device device = transaction.getDevice();
-            if (device != null && "APPROVED".equals(resolvedStatus)) {
-                device.setIsTrusted(true);
-                deviceRepository.save(device);
-            }
-        }
-
-        ReviewQueue saved = reviewQueueRepository.save(item);
-        return ResponseEntity.ok(saved);
+        ReviewQueue saved = reviewQueueService.resolveReview(id, request);
+        return ResponseEntity.ok(ReviewQueueResponse.fromEntity(saved));
     }
 }

@@ -3,14 +3,15 @@ package com.sentinelx.backend.entity;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 import java.time.OffsetDateTime;
 
 /**
- * Represents the immutable audit verdict produced by the Risk Engine for an evaluated transaction.
+ * Represents the audit verdict produced by the Risk Engine for an evaluated transaction.
  * 
  * <p>Every transaction evaluated by SentinelX generates a {@code Decision} record. It records the
  * final aggregated risk score (0-100), the conclusive action ("ALLOW", "REVIEW", "BLOCK"), the exact
- * list of rules triggered, and the microsecond-accurate evaluation latency.</p>
+ * list of rules triggered, and the millisecond-resolution evaluation latency.</p>
  */
 @Entity
 @Table(name = "decisions")
@@ -69,6 +70,7 @@ public class Decision {
     /**
      * UTC timestamp when this decision record was persisted to PostgreSQL.
      */
-    @Column(name = "created_at", insertable = false, updatable = false)
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;
 }

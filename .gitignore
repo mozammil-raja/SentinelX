@@ -1,6 +1,8 @@
 # Databases / Local Docker volumes
 postgres-data/
+postgres_data/
 redis-data/
+redis_data/
 *.rdb
 
 # Java / Maven

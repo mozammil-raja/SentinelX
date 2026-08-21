@@ -5,9 +5,11 @@ import com.sentinelx.backend.entity.Device;
 import com.sentinelx.backend.entity.Rule;
 import com.sentinelx.backend.entity.User;
 import com.sentinelx.backend.repository.RuleRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,12 +21,14 @@ import java.util.Map;
  * executes them dynamically against the active rule configurations queried from PostgreSQL
  * ({@link RuleRepository#findByIsActiveTrue()}).</p>
  */
+@Slf4j
 @Service
 public class RuleEngine {
 
     private final RuleRepository ruleRepository;
     private final Map<String, RiskRule> strategyMap = new HashMap<>();
     private volatile List<Rule> cachedActiveRules = new ArrayList<>();
+    private volatile boolean initialized = false;
 
     /**
      * Dependency injection constructor discovering all available RiskRule strategies.
@@ -41,6 +45,20 @@ public class RuleEngine {
     }
 
     /**
+     * Checks if a Java strategy bean is registered for the specified rule ID.
+     */
+    public boolean hasStrategy(String ruleId) {
+        return ruleId != null && strategyMap.containsKey(ruleId);
+    }
+
+    /**
+     * Returns all registered strategy rule identifiers.
+     */
+    public java.util.Set<String> getRegisteredRuleIds() {
+        return java.util.Collections.unmodifiableSet(strategyMap.keySet());
+    }
+
+    /**
      * Refreshes the in-memory active rules cache from PostgreSQL.
      * Invoked on startup and whenever rules are created, updated, or toggled.
      */
@@ -48,8 +66,10 @@ public class RuleEngine {
         if (ruleRepository != null) {
             try {
                 this.cachedActiveRules = ruleRepository.findByIsActiveTrue();
-            } catch (Exception ignored) {
-                // Allows instantiation prior to schema initialization in isolated test fixtures
+                this.initialized = true;
+                log.debug("Refreshed active rules cache. Loaded {} rules.", cachedActiveRules.size());
+            } catch (Exception e) {
+                log.debug("Rules cache refresh bypassed during initialization or test setup: {}", e.getMessage());
             }
         }
     }
@@ -60,10 +80,10 @@ public class RuleEngine {
      * @return List of active Rule entities
      */
     public List<Rule> getActiveRules() {
-        if (cachedActiveRules == null || cachedActiveRules.isEmpty()) {
+        if (!initialized || cachedActiveRules == null) {
             refreshRules();
         }
-        return cachedActiveRules;
+        return cachedActiveRules != null ? cachedActiveRules : Collections.emptyList();
     }
 
     /**
@@ -82,23 +102,10 @@ public class RuleEngine {
         List<RuleResult> firedRuleResults = new ArrayList<>();
         List<String> firedExplanations = new ArrayList<>();
 
-        // 1. Base risk penalty from customer risk tier
-        if ("HIGH".equalsIgnoreCase(user.getRiskSegment())) {
-            score += 30;
-            RuleResult tierResult = RuleResult.triggered("USER_TIER", "High Risk Segment User", 30, "User is in HIGH risk segment (+30 pts)");
-            firedRuleResults.add(tierResult);
-            firedExplanations.add(tierResult.reason());
-        } else if ("CRITICAL".equalsIgnoreCase(user.getRiskSegment())) {
-            score += 60;
-            RuleResult tierResult = RuleResult.triggered("USER_TIER", "Critical Risk Segment User", 60, "User is in CRITICAL risk segment (+60 pts)");
-            firedRuleResults.add(tierResult);
-            firedExplanations.add(tierResult.reason());
-        }
-
-        // 2. Fetch active dynamic rules from in-memory cache
+        // 1. Fetch active dynamic rules from in-memory cache
         List<Rule> activeRules = getActiveRules();
 
-        // 3. Evaluate each active rule using its corresponding strategy handler
+        // 2. Evaluate each active rule using its corresponding strategy handler
         for (Rule ruleConfig : activeRules) {
             RiskRule strategy = strategyMap.get(ruleConfig.getId());
             if (strategy != null) {
@@ -108,13 +115,16 @@ public class RuleEngine {
                     firedRuleResults.add(result);
                     firedExplanations.add(result.reason());
                 }
+            } else {
+                log.warn("Active database rule {} ('{}') has no matching registered Java RiskRule strategy bean and will be skipped.",
+                        ruleConfig.getId(), ruleConfig.getName());
             }
         }
 
-        // 4. Clamp score between 0 and 100
+        // 3. Clamp score between 0 and 100
         int finalScore = Math.min(100, Math.max(0, score));
 
-        // 5. Determine operational decision verdict
+        // 4. Determine operational decision verdict
         String decisionVerdict;
         if (finalScore >= 70) {
             decisionVerdict = "BLOCK";
