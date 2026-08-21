@@ -9,17 +9,19 @@ import { LiveTransactionFeed } from '@/components/LiveTransactionFeed';
 import { RulesManager } from '@/components/RulesManager';
 import { ReviewQueuePanel } from '@/components/ReviewQueuePanel';
 import { VelocityTelemetryCard } from '@/components/VelocityTelemetryCard';
+import { BacktestStudio } from '@/components/BacktestStudio';
 import {
   ShieldCheck,
   Activity,
   Sliders,
   ClipboardCheck,
   Gauge,
+  FlaskConical,
   LogIn,
   LogOut,
 } from 'lucide-react';
 
-type Tab = 'stream' | 'rules' | 'reviews' | 'velocity';
+type Tab = 'stream' | 'rules' | 'reviews' | 'velocity' | 'backtest';
 
 function DashboardContent() {
   const { status, decisions, lastPing, clearDecisions } = useDecisionStream();
@@ -98,6 +100,18 @@ function DashboardContent() {
                 <Gauge className="w-3.5 h-3.5 text-indigo-400" />
                 <span>Velocity</span>
               </button>
+
+              <button
+                onClick={() => setActiveTab('backtest')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  activeTab === 'backtest'
+                    ? 'bg-slate-800 text-slate-100 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <FlaskConical className="w-3.5 h-3.5 text-purple-400" />
+                <span>Backtest Studio</span>
+              </button>
             </nav>
 
             {/* Auth Profile Widget */}
@@ -159,6 +173,12 @@ function DashboardContent() {
         {activeTab === 'velocity' && (
           <div className="space-y-6 animate-in fade-in duration-200">
             <VelocityTelemetryCard />
+          </div>
+        )}
+
+        {activeTab === 'backtest' && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            <BacktestStudio />
           </div>
         )}
       </main>

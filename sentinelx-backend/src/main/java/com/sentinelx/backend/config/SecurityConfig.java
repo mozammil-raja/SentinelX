@@ -48,6 +48,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/decisions/stream").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/velocity/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/transactions/**").permitAll()
+                        .requestMatchers("/api/v1/backtest/**").permitAll()
 
                         // Read-Only Rule & Queue inquiries permitted for live monitoring
                         .requestMatchers(HttpMethod.GET, "/api/v1/rules/**").permitAll()

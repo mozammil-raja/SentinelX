@@ -124,6 +124,57 @@ async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T>
   return response.json();
 }
 
+export interface SimulationSummary {
+  totalProcessed: number;
+  allowCount: number;
+  reviewCount: number;
+  blockCount: number;
+  allowPercentage: number;
+  reviewPercentage: number;
+  blockPercentage: number;
+  averageScore: number;
+  averageLatencyMs: number;
+}
+
+export interface DiscrepancyItem {
+  transactionId: string;
+  userId: string;
+  amount: number;
+  merchantId: string;
+  ipAddress: string;
+  baselineVerdict: 'ALLOW' | 'REVIEW' | 'BLOCK';
+  baselineScore: number;
+  baselineFiredRules: string[];
+  candidateVerdict: 'ALLOW' | 'REVIEW' | 'BLOCK';
+  candidateScore: number;
+  candidateFiredRules: string[];
+  scoreDelta: number;
+}
+
+export interface BacktestReportResponse {
+  runId: string;
+  datasetSource: string;
+  totalTransactions: number;
+  simulationDurationMs: number;
+  baseline: SimulationSummary;
+  candidate: SimulationSummary;
+  distributionShift: {
+    ALLOW: number;
+    REVIEW: number;
+    BLOCK: number;
+  };
+  blockRateShiftPercentage: number;
+  discrepancyCount: number;
+  discrepancies: DiscrepancyItem[];
+}
+
+export interface BacktestRequest {
+  datasetSource?: 'SAMPLE_BENCHMARK' | 'DATABASE_RANGE' | 'CUSTOM_PAYLOAD';
+  limit?: number;
+  customTransactions?: TransactionRequest[];
+  candidateRules?: Partial<Rule>[];
+}
+
 export const api = {
   // Transaction Ingestion & Inquiries
   transactions: {
@@ -176,5 +227,16 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ status, reviewerId, reviewerNotes }),
       }),
+  },
+
+  // Historical Replay & Backtesting Simulation
+  backtest: {
+    run: (payload?: BacktestRequest) =>
+      fetchJson<BacktestReportResponse>('/api/v1/backtest/run', {
+        method: 'POST',
+        body: JSON.stringify(payload || {}),
+      }),
+    getBenchmark: () =>
+      fetchJson<{ totalCount: number; categories: string[]; sampleTransactions: TransactionRequest[] }>('/api/v1/backtest/benchmark'),
   },
 };
