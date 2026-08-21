@@ -14,7 +14,10 @@ import java.time.OffsetDateTime;
  * list of rules triggered, and the millisecond-resolution evaluation latency.</p>
  */
 @Entity
-@Table(name = "decisions")
+@Table(name = "decisions", indexes = {
+        @Index(name = "idx_decisions_txn_id", columnList = "transaction_id"),
+        @Index(name = "idx_decisions_created_at", columnList = "created_at DESC")
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

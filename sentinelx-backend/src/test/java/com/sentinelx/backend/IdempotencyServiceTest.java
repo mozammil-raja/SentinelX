@@ -21,6 +21,12 @@ class IdempotencyServiceTest {
     @Autowired
     private RiskService riskService;
 
+    @Autowired
+    private com.sentinelx.backend.service.IdempotencyService idempotencyService;
+
+    @Autowired
+    private com.sentinelx.backend.service.VelocityService velocityService;
+
     @Test
     @DisplayName("Idempotency: Duplicate requests with same Idempotency-Key return cached response")
     void testIdempotencyDeduplication() {
@@ -44,8 +50,20 @@ class IdempotencyServiceTest {
         // Second evaluation with the exact same Idempotency-Key
         DecisionResponse cachedResponse = riskService.evaluateTransaction(request, idempotencyKey);
         assertThat(cachedResponse).isNotNull();
-        // The decision ID and score must be identical (or gracefully evaluated if Redis is mocked/down in test)
         assertThat(cachedResponse.getDecision()).isEqualTo(initialResponse.getDecision());
         assertThat(cachedResponse.getFinalScore()).isEqualTo(initialResponse.getFinalScore());
+
+        if (velocityService.isAvailable()) {
+            assertThat(cachedResponse.getDecisionId()).isEqualTo(initialResponse.getDecisionId());
+        }
+    }
+
+    @Test
+    @DisplayName("Idempotency: Null and blank keys are safely ignored without caching errors")
+    void testNullAndBlankIdempotencyKeys() {
+        assertThat(idempotencyService.getCachedDecision(null)).isEmpty();
+        assertThat(idempotencyService.getCachedDecision("   ")).isEmpty();
+        idempotencyService.cacheDecision(null, null);
+        idempotencyService.cacheDecision("key", null);
     }
 }

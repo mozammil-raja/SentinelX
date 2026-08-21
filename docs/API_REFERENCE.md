@@ -173,4 +173,4 @@ Queries the 2-hop entity relationship network for a specific customer.
 ### `GET /api/v1/decisions/stream`
 Opens a persistent HTTP Server-Sent Events (SSE) stream emitting real-time transaction scoring verdicts.
 * **Content-Type**: `text/event-stream`
-* **Heartbeat**: 15-second keep-alive ping comments (`:keepalive`).
+* **Heartbeat**: 25-second keep-alive ping event (`PING` event with `data: keep-alive`).

@@ -5,10 +5,10 @@
 [![Next.js 16](https://img.shields.io/badge/Next.js-16%20(App%20Router)-black.svg?style=flat&logo=next.js)](https://nextjs.org/)
 [![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16-blue.svg?style=flat&logo=postgresql)](https://www.postgresql.org/)
 [![Redis 7](https://img.shields.io/badge/Redis-7%20In--Memory-red.svg?style=flat&logo=redis)](https://redis.io/)
-[![Tests Passing](https://img.shields.io/badge/Tests-54%20Passing-success.svg?style=flat)]()
-[![SLA Latency](https://img.shields.io/badge/SLA%20Latency-%3C%2015ms-blueviolet.svg?style=flat)]()
+[![Tests Passing](https://img.shields.io/badge/Tests-59%20Passing-success.svg?style=flat)]()
+[![SLA Latency](https://img.shields.io/badge/Engine%20Latency-%3C%2015ms-blueviolet.svg?style=flat)]()
 
-**SentinelX** is an enterprise-grade, high-throughput Financial Fraud & Risk Decisioning Platform. It evaluates incoming financial transactions synchronously in real time ($< 15\text{ms}$ latency SLA) to emit definitive risk verdicts: **`ALLOW`**, **`REVIEW`**, or **`BLOCK`**.
+**SentinelX** is an enterprise-grade, high-throughput Financial Fraud & Risk Decisioning Platform. It evaluates incoming financial transactions synchronously in real time ($< 15\text{ms}$ rule engine execution, $< 50\text{ms}$ end-to-end SLA) to emit definitive risk verdicts: **`ALLOW`**, **`REVIEW`**, or **`BLOCK`**.
 
 Built around core Computer Science design principles: **Polymorphic Strategy Rule Engine**, **Redis Sorted Sets (`ZSET`) Sliding Window Velocity**, **2-Hop Bipartite Graph Syndicate Traversal**, **Header-Based Idempotency**, **Distributed Concurrency Locking**, and **Zero-Impact AI Shadow Scoring**.
 
@@ -125,7 +125,7 @@ npm run dev
 ## 🧪 Verification & Test Suite
 
 ```bash
-# Execute 54 automated unit, integration, and benchmark tests
+# Execute 59 automated unit, integration, and benchmark tests
 cd sentinelx-backend
 ./mvnw test
 

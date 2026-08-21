@@ -15,7 +15,11 @@ import java.time.OffsetDateTime;
  * scoring to determine whether it should be approved immediately, held for analyst review, or blocked.</p>
  */
 @Entity
-@Table(name = "transactions")
+@Table(name = "transactions", indexes = {
+        @Index(name = "idx_txns_user_timestamp", columnList = "user_id, timestamp DESC"),
+        @Index(name = "idx_txns_timestamp", columnList = "timestamp DESC"),
+        @Index(name = "idx_txns_merchant", columnList = "merchant_id")
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

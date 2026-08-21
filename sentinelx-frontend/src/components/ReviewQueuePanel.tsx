@@ -30,23 +30,16 @@ export function ReviewQueuePanel() {
   }, []);
 
   useEffect(() => {
-    let ignore = false;
-    async function load() {
-      setLoading(true);
-      try {
-        const data = await api.reviews.getPending();
-        if (!ignore) {
-          setItems(data);
-        }
-      } catch (err) {
-        if (!ignore) console.error('Failed to fetch review queue:', err);
-      } finally {
-        if (!ignore) setLoading(false);
-      }
-    }
-    load();
+    let isMounted = true;
+    api.reviews.getPending()
+      .then((data) => {
+        if (isMounted) setItems(data);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch review queue:', err);
+      });
     return () => {
-      ignore = true;
+      isMounted = false;
     };
   }, []);
 

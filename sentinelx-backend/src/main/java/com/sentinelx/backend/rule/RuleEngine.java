@@ -44,19 +44,6 @@ public class RuleEngine {
         refreshRules();
     }
 
-    /**
-     * Checks if a Java strategy bean is registered for the specified rule ID.
-     */
-    public boolean hasStrategy(String ruleId) {
-        return ruleId != null && strategyMap.containsKey(ruleId);
-    }
-
-    /**
-     * Returns all registered strategy rule identifiers.
-     */
-    public java.util.Set<String> getRegisteredRuleIds() {
-        return java.util.Collections.unmodifiableSet(strategyMap.keySet());
-    }
 
     /**
      * Refreshes the in-memory active rules cache from PostgreSQL.

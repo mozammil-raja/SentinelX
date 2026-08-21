@@ -24,24 +24,20 @@ export function RulesManager() {
   }, []);
 
   useEffect(() => {
-    let ignore = false;
-    async function load() {
-      try {
-        const data = await api.rules.getAll();
-        if (!ignore) {
+    let isMounted = true;
+    api.rules.getAll()
+      .then((data) => {
+        if (isMounted) {
           setRules(data);
           setLoading(false);
         }
-      } catch (err) {
-        if (!ignore) {
-          console.error('Failed to load rules:', err);
-          setLoading(false);
-        }
-      }
-    }
-    load();
+      })
+      .catch((err) => {
+        console.error('Failed to load rules:', err);
+        if (isMounted) setLoading(false);
+      });
     return () => {
-      ignore = true;
+      isMounted = false;
     };
   }, []);
 

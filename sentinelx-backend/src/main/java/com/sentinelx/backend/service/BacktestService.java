@@ -78,20 +78,37 @@ public class BacktestService {
         long totalBaseScore = 0;
         long totalCandScore = 0;
 
+        Map<String, Transaction> lastSeenByUser = new HashMap<>();
+
         for (int i = 0; i < transactions.size(); i++) {
             TransactionRequest txn = transactions.get(i);
             String txnId = "txn_sim_" + (i + 1);
 
             User user = resolveUser(txn.getUserId(), txn.getEmail());
             Device device = resolveDevice(user, txn.getDeviceFingerprint(), txn.getIpAddress(), txn.getOs(), txn.getBrowser());
+            Transaction prevTxn = lastSeenByUser.get(txn.getUserId());
             EvaluationContext context = EvaluationContext.builder()
-                    .lastTransaction(null)
+                    .lastTransaction(prevTxn)
+                    .recentTransactions(prevTxn != null ? List.of(prevTxn) : Collections.emptyList())
                     .build();
 
             // 1. Evaluate with Baseline Rules
             EvaluationReport baseReport = evaluateRules(txn, user, device, baselineRules, context);
             // 2. Evaluate with Candidate Rules
             EvaluationReport candReport = evaluateRules(txn, user, device, candidateRules, context);
+
+            // Record this transaction for subsequent historical context in replay
+            Transaction currentSimTxn = Transaction.builder()
+                    .id(txnId)
+                    .user(user)
+                    .amount(txn.getAmount())
+                    .currency(txn.getCurrency())
+                    .merchantId(txn.getMerchantId())
+                    .ipAddress(txn.getIpAddress())
+                    .device(device)
+                    .timestamp(OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(Math.max(1, (transactions.size() - i) * 2L)))
+                    .build();
+            lastSeenByUser.put(txn.getUserId(), currentSimTxn);
 
             // Accumulate baseline counts
             switch (baseReport.getDecision()) {

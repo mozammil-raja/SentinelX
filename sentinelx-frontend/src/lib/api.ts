@@ -78,6 +78,23 @@ export interface ReviewQueueItem {
   createdAt: string;
 }
 
+export interface CustomerProfile {
+  id: string;
+  name: string;
+  email: string;
+  riskSegment: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  typicalSpendMin?: number;
+  typicalSpendMax?: number;
+  currency: string;
+  usualLocation?: string;
+  usualIp?: string;
+  primaryDevice?: string;
+  primaryDeviceFingerprint?: string;
+  dailyTxnCount?: number;
+  occupation?: string;
+  trustedDeviceFingerprints?: string[];
+}
+
 export interface TransactionResponse {
   id: string;
   userId: string;
@@ -193,6 +210,12 @@ export interface GeminiBenchmarkResponse {
 }
 
 export const api = {
+  // Customer Baseline Profiles
+  customers: {
+    getAll: () => fetchJson<CustomerProfile[]>('/api/v1/customers'),
+    getById: (id: string) => fetchJson<CustomerProfile>(`/api/v1/customers/${id}`),
+  },
+
   // Transaction Ingestion & Inquiries
   transactions: {
     evaluate: (payload: TransactionRequest, idempotencyKey?: string) =>

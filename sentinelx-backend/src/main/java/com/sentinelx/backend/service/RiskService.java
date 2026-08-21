@@ -96,24 +96,32 @@ public class RiskService {
             }
         }
 
-        // 2. Acquire Distributed Concurrency Lock on User
+        // 2. Acquire Distributed Concurrency Lock on User with bounded spin-lock retry
         String lockToken = UUID.randomUUID().toString();
-        distributedLockService.acquireUserLock(request.getUserId(), lockToken, Duration.ofSeconds(5));
+        boolean lockAcquired = distributedLockService.acquireUserLockWithRetry(
+                request.getUserId(), lockToken, Duration.ofSeconds(5), Duration.ofMillis(100), Duration.ofMillis(10));
+        if (!lockAcquired) {
+            log.warn("Distributed lock contention timeout for user '{}'. Proceeding with transaction evaluation.", request.getUserId());
+        }
 
         long startTime = System.currentTimeMillis();
         try {
             // 3. Resolve or auto-provision customer user entity
             User user = userRepository.findById(request.getUserId()).orElseGet(() -> {
+                String safeEmail = request.getEmail();
+                if (safeEmail != null && userRepository.findByEmail(safeEmail).isPresent()) {
+                    safeEmail = request.getUserId() + "_" + safeEmail;
+                }
                 User newUser = User.builder()
                         .id(request.getUserId())
-                        .email(request.getEmail())
+                        .email(safeEmail != null ? safeEmail : request.getUserId() + "@sentinelx.local")
                         .riskSegment("MEDIUM")
                         .build();
                 return userRepository.save(newUser);
             });
 
             if (user.getEmail() != null && request.getEmail() != null && !user.getEmail().equalsIgnoreCase(request.getEmail())) {
-                log.warn("Ingestion payload email '{}' differs from stored account profile email '{}' for user '{}'",
+                log.debug("Ingestion payload email '{}' differs from stored account profile email '{}' for user '{}'",
                         request.getEmail(), user.getEmail(), user.getId());
             }
 
@@ -254,7 +262,9 @@ public class RiskService {
             return response;
         } finally {
             // 13. Safe Lock Release
-            distributedLockService.releaseUserLock(request.getUserId(), lockToken);
+            if (lockAcquired) {
+                distributedLockService.releaseUserLock(request.getUserId(), lockToken);
+            }
         }
     }
 }

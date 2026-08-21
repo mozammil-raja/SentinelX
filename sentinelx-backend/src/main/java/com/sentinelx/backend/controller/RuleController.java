@@ -1,5 +1,6 @@
 package com.sentinelx.backend.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sentinelx.backend.dto.RuleRequest;
 import com.sentinelx.backend.dto.RuleResponse;
 import com.sentinelx.backend.entity.Rule;
@@ -25,10 +26,12 @@ public class RuleController {
 
     private final RuleRepository ruleRepository;
     private final RuleEngine ruleEngine;
+    private final ObjectMapper objectMapper;
 
-    public RuleController(RuleRepository ruleRepository, RuleEngine ruleEngine) {
+    public RuleController(RuleRepository ruleRepository, RuleEngine ruleEngine, ObjectMapper objectMapper) {
         this.ruleRepository = ruleRepository;
         this.ruleEngine = ruleEngine;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -86,6 +89,10 @@ public class RuleController {
         Rule rule = ruleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Rule not found with ID: " + id));
 
+        if (request.getConditionJson() != null && !request.getConditionJson().isBlank()) {
+            validateConditionJson(request.getConditionJson());
+        }
+
         rule.setName(request.getName());
         rule.setDescription(request.getDescription());
         rule.setConditionJson(request.getConditionJson());
@@ -100,7 +107,7 @@ public class RuleController {
     }
 
     /**
-     * Creates and registers a new dynamic fraud detection rule.
+     * Creates and registers a dynamic fraud detection rule.
      *
      * @param request Validated rule creation payload
      * @return Created Rule presentation DTO with HTTP 201
@@ -114,6 +121,10 @@ public class RuleController {
 
         if (ruleRepository.existsById(ruleId)) {
             throw new IllegalArgumentException("A rule with ID '" + ruleId + "' already exists. Use PUT /api/v1/rules/" + ruleId + " to update it.");
+        }
+
+        if (request.getConditionJson() != null && !request.getConditionJson().isBlank()) {
+            validateConditionJson(request.getConditionJson());
         }
 
         Rule rule = Rule.builder()
@@ -130,5 +141,13 @@ public class RuleController {
         Rule saved = ruleRepository.save(rule);
         ruleEngine.refreshRules();
         return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(RuleResponse.fromEntity(saved));
+    }
+
+    private void validateConditionJson(String conditionJson) {
+        try {
+            objectMapper.readTree(conditionJson);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid JSON syntax in conditionJson: " + e.getMessage());
+        }
     }
 }

@@ -239,7 +239,7 @@ public class VelocityService {
         try {
             long nowMs = Instant.now().toEpochMilli();
             long cutoffMs = nowMs - (windowSeconds * 1000L);
-            String member = (txnId != null ? txnId : "ev") + ":" + amount.toPlainString() + ":" + nowMs;
+            String member = (txnId != null ? txnId : "ev") + "|" + amount.toPlainString() + "|" + nowMs;
             int ttlSeconds = windowSeconds + 60;
 
             String result = redisTemplate.execute(
@@ -310,10 +310,14 @@ public class VelocityService {
      * @param userId Unique customer identifier
      */
     public void resetUserVelocity(String userId) {
+        if (userId == null) {
+            return;
+        }
         try {
             redisTemplate.delete(KEY_PREFIX_USER + userId);
             redisTemplate.delete(KEY_PREFIX_VOLUME_USER + userId);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("User velocity reset skipped (Redis offline or key missing): {}", e.getMessage());
         }
     }
 
@@ -327,8 +331,7 @@ public class VelocityService {
     public void resetVelocity(String userId, String ipAddress, String deviceFingerprint) {
         try {
             if (userId != null) {
-                redisTemplate.delete(KEY_PREFIX_USER + userId);
-                redisTemplate.delete(KEY_PREFIX_VOLUME_USER + userId);
+                resetUserVelocity(userId);
             }
             if (ipAddress != null) {
                 redisTemplate.delete(KEY_PREFIX_IP + ipAddress);
@@ -336,7 +339,8 @@ public class VelocityService {
             if (deviceFingerprint != null) {
                 redisTemplate.delete(KEY_PREFIX_DEVICE + deviceFingerprint);
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("Velocity reset skipped (Redis offline or key missing): {}", e.getMessage());
         }
     }
 

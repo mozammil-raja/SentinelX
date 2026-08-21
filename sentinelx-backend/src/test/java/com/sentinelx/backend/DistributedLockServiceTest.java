@@ -31,4 +31,51 @@ class DistributedLockServiceTest {
         // Release lock
         distributedLockService.releaseUserLock(userId, token);
     }
+
+    @Test
+    @DisplayName("Distributed Lock: Token mismatch prevents accidental release by other callers")
+    void testLockTokenMismatchSafety() {
+        String userId = "usr_lock_mismatch_" + UUID.randomUUID().toString().substring(0, 6);
+        String tokenOwner = UUID.randomUUID().toString();
+        String tokenImposter = UUID.randomUUID().toString();
+
+        boolean acquired = distributedLockService.acquireUserLock(userId, tokenOwner, Duration.ofSeconds(5));
+        assertThat(acquired).isTrue();
+
+        // Attempt release with wrong token
+        distributedLockService.releaseUserLock(userId, tokenImposter);
+
+        // Proper release
+        distributedLockService.releaseUserLock(userId, tokenOwner);
+    }
+
+    @Test
+    @DisplayName("Distributed Lock: Spin-lock retry acquires lock after previous holder releases")
+    void testSpinLockRetryAcquisition() {
+        String userId = "usr_lock_retry_" + UUID.randomUUID().toString().substring(0, 6);
+        String token1 = UUID.randomUUID().toString();
+        String token2 = UUID.randomUUID().toString();
+
+        // Acquire with token1
+        boolean acq1 = distributedLockService.acquireUserLock(userId, token1, Duration.ofSeconds(2));
+        assertThat(acq1).isTrue();
+
+        // Immediately release token1
+        distributedLockService.releaseUserLock(userId, token1);
+
+        // Spin-lock retry with token2 should succeed
+        boolean acq2 = distributedLockService.acquireUserLockWithRetry(userId, token2, Duration.ofSeconds(2), Duration.ofMillis(200), Duration.ofMillis(20));
+        assertThat(acq2).isTrue();
+
+        distributedLockService.releaseUserLock(userId, token2);
+    }
+
+    @Test
+    @DisplayName("Distributed Lock: Handles null or blank user IDs gracefully")
+    void testNullOrBlankUserLock() {
+        assertThat(distributedLockService.acquireUserLock(null, "token", Duration.ofSeconds(1))).isTrue();
+        assertThat(distributedLockService.acquireUserLock("", "token", Duration.ofSeconds(1))).isTrue();
+        distributedLockService.releaseUserLock(null, "token");
+        distributedLockService.releaseUserLock("", "token");
+    }
 }

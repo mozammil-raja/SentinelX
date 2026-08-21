@@ -55,6 +55,7 @@ public class SecurityConfig {
                         // Read-Only Rule & Queue inquiries permitted for live monitoring
                         .requestMatchers(HttpMethod.GET, "/api/v1/rules/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/reviews/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/customers/**").permitAll()
 
                         // Protected Administrative / Analyst Actions (Require ROLE_ANALYST / Authentication)
                         .requestMatchers(HttpMethod.PUT, "/api/v1/rules/**").hasAnyRole("ANALYST", "ADMIN")

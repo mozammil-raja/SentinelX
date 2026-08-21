@@ -14,7 +14,9 @@ import java.time.OffsetDateTime;
  * inspect triggered rules, review device history, and provide an authoritative human decision ("APPROVED" or "REJECTED").</p>
  */
 @Entity
-@Table(name = "review_queue")
+@Table(name = "review_queue", indexes = {
+        @Index(name = "idx_rq_status_created_at", columnList = "status, created_at DESC")
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

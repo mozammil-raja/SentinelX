@@ -6,6 +6,8 @@ import com.sentinelx.backend.entity.User;
 import com.sentinelx.backend.repository.TransactionRepository;
 import com.sentinelx.backend.repository.UserRepository;
 import com.sentinelx.backend.service.VelocityService;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,9 +40,7 @@ class VelocityServiceTest {
     @Test
     @DisplayName("Sliding window record and query operations function when Redis is available")
     void testSlidingWindowRecordAndCount() {
-        if (!velocityService.isAvailable()) {
-            return; // Skip Redis-specific assertions when running in environment without live Redis
-        }
+        Assumptions.assumeTrue(velocityService.isAvailable(), "Redis instance is required for live Redis sliding window assertions");
 
         String testUserId = "usr_vel_test_" + System.currentTimeMillis();
         String txnId1 = "txn_v1_" + System.currentTimeMillis();
@@ -61,9 +61,7 @@ class VelocityServiceTest {
     @Test
     @DisplayName("Atomic volume recording and query operations function correctly over sliding window")
     void testSlidingWindowVolumeAccumulation() {
-        if (!velocityService.isAvailable()) {
-            return;
-        }
+        Assumptions.assumeTrue(velocityService.isAvailable(), "Redis instance is required for live Redis volume tracking assertions");
 
         String testUserId = "usr_vol_test_" + System.currentTimeMillis();
         String txnId1 = "txn_vol1_" + System.currentTimeMillis();
@@ -84,9 +82,7 @@ class VelocityServiceTest {
     @Test
     @DisplayName("Multi-dimensional metric recording for IP, Device, Card BIN, and Volume")
     void testMultiDimensionalMetrics() {
-        if (!velocityService.isAvailable()) {
-            return; // Skip Redis-specific assertions when running in environment without live Redis
-        }
+        Assumptions.assumeTrue(velocityService.isAvailable(), "Redis instance is required for multi-dimensional Redis metrics");
 
         String testUserId = "usr_multi_" + System.currentTimeMillis();
         String testIp = "198.51.100.42";
@@ -162,13 +158,17 @@ class VelocityServiceTest {
                 .timestamp(now.minusSeconds(90))
                 .build());
 
-        // When Redis is not tracking this user, getUserVelocity retrieves count from PostgreSQL
+        // When Redis is not tracking this user or offline, database fallback resolves from PostgreSQL
         if (!velocityService.isAvailable()) {
             int velocity = velocityService.getUserVelocity(testUserId, 300);
             assertThat(velocity).isEqualTo(3);
 
             BigDecimal volume = velocityService.getUserVolumeVelocity(testUserId, 300);
             assertThat(volume).isEqualByComparingTo(new BigDecimal("225.00"));
+        } else {
+            OffsetDateTime cutoff = OffsetDateTime.now(ZoneOffset.UTC).minusSeconds(300);
+            java.util.List<Transaction> txns = transactionRepository.findByUserIdAndTimestampGreaterThanEqualOrderByTimestampDesc(testUserId, cutoff);
+            assertThat(txns).hasSize(3);
         }
     }
 }

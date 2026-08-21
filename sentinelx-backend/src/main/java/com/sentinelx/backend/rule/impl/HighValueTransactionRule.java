@@ -70,6 +70,30 @@ public class HighValueTransactionRule implements RiskRule {
         BigDecimal rate = USD_EXCHANGE_RATES.getOrDefault(currency, BigDecimal.ONE);
         BigDecimal amountInUsd = request.getAmount().multiply(rate);
 
+        // 1. Check User Behavioral Baseline Spend Deviation
+        if (user != null && user.getTypicalSpendMax() != null && user.getTypicalSpendMax().compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal baselineLimit = user.getTypicalSpendMax().multiply(BigDecimal.valueOf(2.5));
+            if (request.getAmount().compareTo(baselineLimit) > 0) {
+                String explanation = String.format("%s: %s: Transaction amount %s %s significantly deviates from customer's typical spend baseline (%s–%s %s) (+%d pts)",
+                        ruleConfig.getId(),
+                        ruleConfig.getName(),
+                        request.getAmount().toPlainString(),
+                        currency,
+                        user.getTypicalSpendMin() != null ? user.getTypicalSpendMin().toPlainString() : "0",
+                        user.getTypicalSpendMax().toPlainString(),
+                        currency,
+                        ruleConfig.getWeight());
+
+                return RuleResult.triggered(
+                        ruleConfig.getId(),
+                        ruleConfig.getName(),
+                        ruleConfig.getWeight(),
+                        explanation
+                );
+            }
+        }
+
+        // 2. Check Global High-Value USD Threshold
         if (amountInUsd.compareTo(thresholdUsd) > 0) {
             String explanation = "USD".equals(currency)
                     ? String.format("%s: %s: Amount %s USD exceeds threshold %s USD (+%d pts)",

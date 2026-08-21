@@ -57,6 +57,14 @@ class SecurityControllerTest {
     }
 
     @Test
+    @DisplayName("Security: Rule toggle with invalid malformed bearer token returns 403 Forbidden")
+    void testRuleToggleWithInvalidTokenReturnsForbidden() throws Exception {
+        mockMvc.perform(put("/api/v1/rules/RULE_01/toggle")
+                        .header("Authorization", "Bearer invalid_malformed_token_xyz"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("Security: Review resolve without token returns 403 Forbidden")
     void testReviewResolveProtectedWithoutAuth() throws Exception {
         mockMvc.perform(post("/api/v1/reviews/999/resolve")

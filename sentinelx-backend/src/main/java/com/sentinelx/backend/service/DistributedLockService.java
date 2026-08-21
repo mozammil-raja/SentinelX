@@ -62,6 +62,32 @@ public class DistributedLockService {
     }
 
     /**
+     * Attempts to acquire user lock with bounded spin-lock retry to serialize concurrent burst requests.
+     *
+     * @param userId User identifier
+     * @param lockToken Unique token for lock ownership
+     * @param lockTtl TTL for the lock
+     * @param maxWait Maximum duration to wait before giving up
+     * @param retryInterval Interval between polling attempts
+     * @return true if acquired; false if timeout exceeded
+     */
+    public boolean acquireUserLockWithRetry(String userId, String lockToken, Duration lockTtl, Duration maxWait, Duration retryInterval) {
+        long deadline = System.currentTimeMillis() + maxWait.toMillis();
+        while (System.currentTimeMillis() <= deadline) {
+            if (acquireUserLock(userId, lockToken, lockTtl)) {
+                return true;
+            }
+            try {
+                Thread.sleep(retryInterval.toMillis());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Releases the distributed lock only if the calling thread still holds the matching token.
      *
      * @param userId Unique user identifier

@@ -26,9 +26,11 @@ public class SyndicateFraudRule implements RiskRule {
     public static final String RULE_ID = "RULE_07";
 
     private final GraphSyndicateService graphSyndicateService;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
-    public SyndicateFraudRule(GraphSyndicateService graphSyndicateService) {
+    public SyndicateFraudRule(GraphSyndicateService graphSyndicateService, com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
         this.graphSyndicateService = graphSyndicateService;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -38,12 +40,36 @@ public class SyndicateFraudRule implements RiskRule {
 
     @Override
     public RuleResult evaluate(TransactionRequest request, User user, Device device, Rule ruleConfig, EvaluationContext context) {
+        boolean inspectDevices = true;
+        boolean inspectCards = true;
+        boolean inspectIps = false;
+
+        if (ruleConfig != null && ruleConfig.getConditionJson() != null && !ruleConfig.getConditionJson().isBlank()) {
+            try {
+                com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(ruleConfig.getConditionJson());
+                if (root.has("inspectDevices")) {
+                    inspectDevices = root.get("inspectDevices").asBoolean(true);
+                }
+                if (root.has("inspectCards")) {
+                    inspectCards = root.get("inspectCards").asBoolean(true);
+                }
+                if (root.has("inspectIps")) {
+                    inspectIps = root.get("inspectIps").asBoolean(false);
+                }
+            } catch (Exception e) {
+                log.debug("Failed to parse condition_json for {}: {}", ruleConfig.getId(), e.getMessage());
+            }
+        }
+
         // 1. Check graph syndicate connection
         SyndicateDetectionResult result = graphSyndicateService.detectSyndicate(
                 request.getUserId(),
                 request.getDeviceFingerprint(),
                 request.getIpAddress(),
-                request.getCardBin()
+                request.getCardBin(),
+                inspectDevices,
+                inspectCards,
+                inspectIps
         );
 
         // 2. Record this observed connection in the live graph

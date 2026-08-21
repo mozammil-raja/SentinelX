@@ -4,7 +4,7 @@
 
 SentinelX is a synchronous, high-throughput Financial Fraud & Risk Decisioning Platform engineered in **Java 21 LTS (Spring Boot 3.4.x)** and backed by **PostgreSQL 16** and an **in-memory Redis 7 acceleration layer**.
 
-The system evaluates inbound payment transactions in real time ($< 15\text{ms}$ latency SLA) to emit deterministic operational verdicts:
+The system evaluates inbound payment transactions in real time ($< 15\text{ms}$ rule engine execution, $< 50\text{ms}$ end-to-end SLA) to emit deterministic operational verdicts:
 * **`ALLOW`** ($\text{Score} < 30$): Approved synchronously.
 * **`REVIEW`** ($30 \le \text{Score} < 70$): Held for human-in-the-loop analyst review with GenAI reasoning synthesis.
 * **`BLOCK`** ($\text{Score} \ge 70$): High-confidence fraud rejected immediately.

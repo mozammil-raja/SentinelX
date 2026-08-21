@@ -92,7 +92,7 @@ public class RedisConfig {
                 "local items = redis.call('ZRANGEBYSCORE', key, cutoffMs, '+inf') " +
                 "local total = 0 " +
                 "for _, item in ipairs(items) do " +
-                "  local amt = string.match(item, ':([^:]+):') " +
+                "  local amt = string.match(item, '|([^|]+)|') or string.match(item, ':([^:]+):') " +
                 "  if amt then " +
                 "    local num = tonumber(amt) " +
                 "    if num then total = total + num end " +
@@ -119,7 +119,7 @@ public class RedisConfig {
                 "local items = redis.call('ZRANGEBYSCORE', key, cutoffMs, '+inf') " +
                 "local total = 0 " +
                 "for _, item in ipairs(items) do " +
-                "  local amt = string.match(item, ':([^:]+):') " +
+                "  local amt = string.match(item, '|([^|]+)|') or string.match(item, ':([^:]+):') " +
                 "  if amt then " +
                 "    local num = tonumber(amt) " +
                 "    if num then total = total + num end " +
