@@ -40,7 +40,7 @@ export function VelocityTelemetryCard() {
       try {
         const [healthRes, metricsRes] = await Promise.all([
           api.velocity.getHealth().catch(() => null),
-          api.velocity.getUserVelocity('usr_sarah', 300).catch(() => null)
+          api.velocity.getUserVelocity('usr_sarah', 300).catch(() => null),
         ]);
         if (!ignore) {
           if (healthRes) setHealth(healthRes);
@@ -59,19 +59,19 @@ export function VelocityTelemetryCard() {
   }, []);
 
   return (
-    <div className="bg-[#0E1219] border border-slate-800 rounded-lg p-5 space-y-4 font-mono">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+    <div className="bg-[#353535] border border-white rounded-lg p-5 space-y-4 font-mono text-white">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-white">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-slate-900 border border-slate-700 flex items-center justify-center text-slate-200">
-            <Gauge className="w-4 h-4 text-blue-400" />
+          <div className="w-8 h-8 rounded bg-[#353535] border border-white flex items-center justify-center text-white">
+            <Gauge className="w-4 h-4 text-white" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-slate-100 uppercase tracking-wide">
+              <h2 className="text-base font-bold text-white uppercase tracking-wide">
                 VELOCITY_MONITOR // REDIS_SLIDING_WINDOW_LOG
               </h2>
             </div>
-            <p className="text-xs text-slate-400 font-sans mt-0.5">
+            <p className="text-xs text-neutral-300 font-sans mt-0.5">
               High-throughput in-memory rate limiting with atomic Lua scripts and rolling timestamp eviction
             </p>
           </div>
@@ -79,13 +79,13 @@ export function VelocityTelemetryCard() {
 
         <div className="flex items-center gap-2">
           {health?.isRedisAvailable ? (
-            <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-semibold bg-emerald-950/40 px-2.5 py-1 rounded border border-emerald-800/60">
-              <CheckCircle2 className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#353535] px-2.5 py-1 rounded border border-white">
+              <CheckCircle2 className="w-3.5 h-3.5 text-white" />
               <span>REDIS: ONLINE (&lt;1MS)</span>
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 text-xs text-amber-400 font-semibold bg-amber-950/40 px-2.5 py-1 rounded border border-amber-800/60">
-              <AlertCircle className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-1.5 text-xs text-white font-bold bg-[#353535] px-2.5 py-1 rounded border border-white">
+              <AlertCircle className="w-3.5 h-3.5 text-white" />
               <span>DATABASE_FALLBACK: ACTIVE</span>
             </div>
           )}
@@ -100,13 +100,13 @@ export function VelocityTelemetryCard() {
             onChange={(e) => setLookupUser(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleLookup()}
             placeholder="Search Account ID (e.g. usr_sarah)..."
-            className="w-full bg-[#090C10] border border-slate-800 rounded px-3 py-1.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
+            className="w-full bg-[#353535] border border-white rounded px-3 py-1.5 text-xs text-white placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-white font-mono"
           />
         </div>
         <button
           onClick={() => handleLookup()}
           disabled={loading}
-          className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 flex items-center gap-1.5 transition-colors border border-slate-700 disabled:opacity-50"
+          className="px-4 py-1.5 rounded bg-white text-black hover:bg-neutral-200 text-xs font-bold flex items-center gap-1.5 transition-colors border border-white disabled:opacity-50"
         >
           <Search className="w-3.5 h-3.5" />
           <span>QUERY</span>
@@ -115,28 +115,28 @@ export function VelocityTelemetryCard() {
 
       {metrics && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
-          <div className="p-3 rounded bg-[#090C10] border border-slate-800 space-y-1">
-            <span className="text-[10px] text-slate-500 uppercase tracking-wider">WINDOW_TXN_COUNT</span>
-            <div className="text-xl font-bold text-blue-400">
+          <div className="p-3.5 rounded bg-[#353535] border border-white space-y-1">
+            <span className="text-[10px] text-neutral-300 uppercase tracking-wider">WINDOW_TXN_COUNT</span>
+            <div className="text-xl font-bold text-white">
               {metrics.userVelocityCount ?? 0}
             </div>
-            <span className="text-[10px] text-slate-500">LIMIT: 5 TXNS / 300S</span>
+            <span className="text-[10px] text-neutral-300">LIMIT: 5 TXNS / 300S</span>
           </div>
 
-          <div className="p-3 rounded bg-[#090C10] border border-slate-800 space-y-1">
-            <span className="text-[10px] text-slate-500 uppercase tracking-wider">CUMULATIVE_VOLUME</span>
-            <div className="text-xl font-bold text-slate-200">
+          <div className="p-3.5 rounded bg-[#353535] border border-white space-y-1">
+            <span className="text-[10px] text-neutral-300 uppercase tracking-wider">CUMULATIVE_VOLUME</span>
+            <div className="text-xl font-bold text-white">
               ${Number(metrics.userVolumeAmount ?? 0).toFixed(2)}
             </div>
-            <span className="text-[10px] text-slate-500">AGGREGATION: RAM_SLIDING_SUM</span>
+            <span className="text-[10px] text-neutral-300">AGGREGATION: RAM_SLIDING_SUM</span>
           </div>
 
-          <div className="p-3 rounded bg-[#090C10] border border-slate-800 col-span-2 sm:col-span-1 space-y-1">
-            <span className="text-[10px] text-slate-500 uppercase tracking-wider">WINDOW_DURATION</span>
-            <div className="text-xl font-bold text-slate-200">
+          <div className="p-3.5 rounded bg-[#353535] border border-white col-span-2 sm:col-span-1 space-y-1">
+            <span className="text-[10px] text-neutral-300 uppercase tracking-wider">WINDOW_DURATION</span>
+            <div className="text-xl font-bold text-white">
               300s (5m)
             </div>
-            <span className="text-[10px] text-slate-500">COMPLEXITY: O(log N + M)</span>
+            <span className="text-[10px] text-neutral-300">COMPLEXITY: O(log N + M)</span>
           </div>
         </div>
       )}

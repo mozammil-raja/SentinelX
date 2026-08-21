@@ -70,21 +70,21 @@ export function GraphSyndicateVisualizer() {
   }) || [];
 
   return (
-    <div className="space-y-4 font-mono">
+    <div className="space-y-4 font-mono text-white">
       {/* Header & Global Stats */}
-      <div className="bg-[#0E1219] border border-slate-800 rounded-lg p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+      <div className="bg-[#353535] border border-white rounded-lg p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-white">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded bg-slate-900 border border-slate-700 flex items-center justify-center text-slate-200">
-              <Network className="w-4 h-4 text-blue-400" />
+            <div className="w-8 h-8 rounded bg-[#353535] border border-white flex items-center justify-center text-white">
+              <Network className="w-4 h-4 text-white" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-slate-100 uppercase tracking-wide">
+                <h2 className="text-base font-bold text-white uppercase tracking-wide">
                   GRAPH_INTELLIGENCE // SYNDICATE_FRAUD_RING_TRAVERSAL
                 </h2>
               </div>
-              <p className="text-xs text-slate-400 font-sans mt-0.5">
+              <p className="text-xs text-neutral-300 font-sans mt-0.5">
                 2-Hop BFS bipartite graph traversal analyzing shared devices, IP subnets, and payment instruments
               </p>
             </div>
@@ -96,14 +96,14 @@ export function GraphSyndicateVisualizer() {
                 type="text"
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}
-                placeholder="Search Account ID (e.g. usr_sarah)..."
-                className="w-full bg-[#090C10] border border-slate-800 rounded pl-8 pr-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-mono"
+                placeholder="SEARCH_ACCOUNT_ID (e.g. usr_sarah)..."
+                className="w-full bg-[#353535] border border-white rounded pl-8 pr-3 py-1.5 text-xs text-white placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-white font-mono"
               />
-              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
+              <Search className="w-3.5 h-3.5 text-neutral-300 absolute left-2.5 top-2.5" />
             </div>
             <button
               onClick={() => fetchGraphData(userId)}
-              className="p-1.5 rounded border border-slate-800 bg-[#090C10] hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+              className="p-1.5 rounded border border-white bg-white text-black hover:bg-neutral-200 transition-colors font-bold"
               title="Refresh graph"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -113,39 +113,39 @@ export function GraphSyndicateVisualizer() {
 
         {/* Global Summary Mini-Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
-          <div className="p-2.5 rounded bg-[#090C10] border border-slate-800">
-            <span className="text-[10px] text-slate-500 uppercase tracking-wider">TOTAL_ENTITIES</span>
+          <div className="p-2.5 rounded bg-[#353535] border border-white">
+            <span className="text-[10px] text-neutral-300 uppercase tracking-wider">TOTAL_ENTITIES</span>
             <div className="flex items-center justify-between mt-0.5">
-              <span className="text-lg font-bold text-slate-100">{summary?.totalNodes ?? 0}</span>
-              <Network className="w-3.5 h-3.5 text-slate-500" />
+              <span className="text-lg font-bold text-white">{summary?.totalNodes ?? 0}</span>
+              <Network className="w-3.5 h-3.5 text-white" />
             </div>
           </div>
-          <div className="p-2.5 rounded bg-[#090C10] border border-slate-800">
-            <span className="text-[10px] text-slate-500 uppercase tracking-wider">USER_NODES</span>
+          <div className="p-2.5 rounded bg-[#353535] border border-white">
+            <span className="text-[10px] text-neutral-300 uppercase tracking-wider">USER_NODES</span>
             <div className="flex items-center justify-between mt-0.5">
-              <span className="text-lg font-bold text-blue-400">{summary?.totalUsers ?? 0}</span>
-              <UserIcon className="w-3.5 h-3.5 text-blue-500/70" />
+              <span className="text-lg font-bold text-white">{summary?.totalUsers ?? 0}</span>
+              <UserIcon className="w-3.5 h-3.5 text-white" />
             </div>
           </div>
-          <div className="p-2.5 rounded bg-[#090C10] border border-slate-800">
-            <span className="text-[10px] text-slate-500 uppercase tracking-wider">HARDWARE_FPS</span>
+          <div className="p-2.5 rounded bg-[#353535] border border-white">
+            <span className="text-[10px] text-neutral-300 uppercase tracking-wider">HARDWARE_FPS</span>
             <div className="flex items-center justify-between mt-0.5">
-              <span className="text-lg font-bold text-slate-200">{summary?.totalDevices ?? 0}</span>
-              <Smartphone className="w-3.5 h-3.5 text-slate-500" />
+              <span className="text-lg font-bold text-white">{summary?.totalDevices ?? 0}</span>
+              <Smartphone className="w-3.5 h-3.5 text-white" />
             </div>
           </div>
-          <div className="p-2.5 rounded bg-[#090C10] border border-slate-800">
-            <span className="text-[10px] text-slate-500 uppercase tracking-wider">IP_SUBNETS</span>
+          <div className="p-2.5 rounded bg-[#353535] border border-white">
+            <span className="text-[10px] text-neutral-300 uppercase tracking-wider">IP_SUBNETS</span>
             <div className="flex items-center justify-between mt-0.5">
-              <span className="text-lg font-bold text-cyan-400">{summary?.totalIps ?? 0}</span>
-              <Globe className="w-3.5 h-3.5 text-cyan-500/70" />
+              <span className="text-lg font-bold text-white">{summary?.totalIps ?? 0}</span>
+              <Globe className="w-3.5 h-3.5 text-white" />
             </div>
           </div>
-          <div className="p-2.5 rounded bg-[#090C10] border border-slate-800">
-            <span className="text-[10px] text-slate-500 uppercase tracking-wider">SANCTIONED_NODES</span>
+          <div className="p-2.5 rounded bg-[#353535] border border-white">
+            <span className="text-[10px] text-neutral-300 uppercase tracking-wider">SANCTIONED_NODES</span>
             <div className="flex items-center justify-between mt-0.5">
-              <span className="text-lg font-bold text-red-400">{summary?.blockedUsersCount ?? 0}</span>
-              <ShieldAlert className="w-3.5 h-3.5 text-red-500/70" />
+              <span className="text-lg font-bold text-white">{summary?.blockedUsersCount ?? 0}</span>
+              <ShieldAlert className="w-3.5 h-3.5 text-white" />
             </div>
           </div>
         </div>
@@ -153,29 +153,29 @@ export function GraphSyndicateVisualizer() {
 
       {/* Syndicate Detection Alert Banner */}
       {network?.syndicateAnalysis?.syndicateDetected ? (
-        <div className="p-3.5 rounded bg-[#1A0B0B] border border-red-800/80 space-y-2 text-xs">
-          <div className="flex items-center gap-2 text-red-300 font-bold">
-            <AlertTriangle className="w-4 h-4 text-red-400" />
+        <div className="p-3.5 rounded bg-[#353535] border border-white space-y-2 text-xs">
+          <div className="flex items-center gap-2 text-white font-bold">
+            <AlertTriangle className="w-4 h-4 text-white" />
             <span>[CRITICAL_SYNDICATE_DETECTED] RULE_07 TRIGGERED (+75 PTS)</span>
           </div>
-          <p className="text-slate-300 font-sans leading-relaxed">
+          <p className="text-neutral-200 font-sans leading-relaxed">
             {network.syndicateAnalysis.explanation}
           </p>
           <div className="flex flex-wrap gap-2 pt-1 text-[11px]">
-            <span className="px-2 py-0.5 rounded bg-red-950/80 text-red-300 border border-red-800/60">
+            <span className="px-2 py-0.5 rounded bg-white text-black font-bold border border-white">
               CONNECTED_FRAUDSTER: {network.syndicateAnalysis.connectedBlockedUserId}
             </span>
-            <span className="px-2 py-0.5 rounded bg-[#090C10] text-slate-300 border border-slate-800">
+            <span className="px-2 py-0.5 rounded bg-[#353535] text-white border border-white">
               SHARED_INFRASTRUCTURE: {network.syndicateAnalysis.sharedEntityId}
             </span>
-            <span className="px-2 py-0.5 rounded bg-[#090C10] text-slate-300 border border-slate-800">
+            <span className="px-2 py-0.5 rounded bg-[#353535] text-white border border-white">
               DEGREES_OF_SEPARATION: {network.syndicateAnalysis.degreesOfSeparation} HOPS
             </span>
           </div>
         </div>
       ) : (
-        <div className="p-2.5 rounded bg-[#0B1A14] border border-emerald-800/60 flex items-center gap-2 text-xs text-emerald-300">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+        <div className="p-2.5 rounded bg-[#353535] border border-white flex items-center gap-2 text-xs text-white">
+          <CheckCircle2 className="w-4 h-4 text-white" />
           <span>GRAPH_TRAVERSAL_CLEAN: No 2-hop connections to known sanctioned entities detected.</span>
         </div>
       )}
@@ -183,22 +183,22 @@ export function GraphSyndicateVisualizer() {
       {/* Node-Link Network Browser */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Left: Node Explorer */}
-        <div className="lg:col-span-2 bg-[#0E1219] border border-slate-800 rounded-lg p-4 space-y-3">
-          <div className="flex items-center justify-between pb-1 border-b border-slate-800">
-            <h3 className="text-xs font-bold text-slate-200 uppercase flex items-center gap-2">
-              <Network className="w-3.5 h-3.5 text-blue-400" />
+        <div className="lg:col-span-2 bg-[#353535] border border-white rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between pb-1 border-b border-white">
+            <h3 className="text-xs font-bold text-white uppercase flex items-center gap-2">
+              <Network className="w-3.5 h-3.5 text-white" />
               <span>CONNECTED_SUBGRAPH_NODES ({filteredNodes.length})</span>
             </h3>
             {/* Filter Pills */}
-            <div className="flex items-center gap-1 bg-[#090C10] p-0.5 rounded border border-slate-800 text-[10px]">
+            <div className="flex items-center gap-1 bg-[#353535] p-0.5 rounded border border-white text-[10px]">
               {(['ALL', 'USER', 'DEVICE', 'IP', 'CARD'] as const).map((filter) => (
                 <button
                   key={filter}
                   onClick={() => setActiveFilter(filter)}
-                  className={`px-2 py-0.5 rounded font-semibold transition-colors ${
+                  className={`px-2 py-0.5 rounded font-bold transition-colors ${
                     activeFilter === filter
-                      ? 'bg-slate-800 text-slate-100 border border-slate-700'
-                      : 'text-slate-500 hover:text-slate-300'
+                      ? 'bg-white text-black'
+                      : 'text-white hover:bg-white/10'
                   }`}
                 >
                   {filter}
@@ -217,14 +217,14 @@ export function GraphSyndicateVisualizer() {
                   key={node.id}
                   className={`p-2.5 rounded border flex items-center justify-between gap-2 transition-colors ${
                     isBlocked
-                      ? 'bg-red-950/30 border-red-800/80 text-red-200'
+                      ? 'bg-white text-black font-bold border-white'
                       : isFocus
-                      ? 'bg-blue-950/30 border-blue-600/80 text-blue-200'
-                      : 'bg-[#090C10] border-slate-800 text-slate-200'
+                      ? 'bg-white/20 border-white text-white font-bold'
+                      : 'bg-[#353535] border-white text-white'
                   }`}
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <div className="p-1.5 rounded bg-slate-900 border border-slate-800 text-slate-400 shrink-0">
+                    <div className="p-1.5 rounded bg-[#353535] border border-white text-white shrink-0">
                       {node.type === 'USER' && <UserIcon className="w-3.5 h-3.5" />}
                       {node.type === 'DEVICE' && <Smartphone className="w-3.5 h-3.5" />}
                       {node.type === 'IP' && <Globe className="w-3.5 h-3.5" />}
@@ -232,16 +232,16 @@ export function GraphSyndicateVisualizer() {
                     </div>
                     <div className="min-w-0">
                       <div className="text-xs font-semibold truncate">{node.label}</div>
-                      <div className="text-[10px] text-slate-500 uppercase">{node.type} NODE</div>
+                      <div className={`text-[10px] uppercase ${isBlocked ? 'text-neutral-700 font-normal' : 'text-neutral-300'}`}>{node.type} NODE</div>
                     </div>
                   </div>
 
                   {isBlocked ? (
-                    <span className="px-1.5 py-0.2 rounded bg-red-950 text-[10px] font-bold text-red-300 border border-red-800/80 shrink-0">
+                    <span className="px-1.5 py-0.2 rounded bg-black text-[10px] font-bold text-white border border-black shrink-0">
                       BLOCKED
                     </span>
                   ) : (
-                    <span className="text-[10px] text-slate-500 shrink-0">
+                    <span className="text-[10px] text-neutral-300 shrink-0">
                       SCORE: {node.riskScore || 0}
                     </span>
                   )}
@@ -252,10 +252,10 @@ export function GraphSyndicateVisualizer() {
         </div>
 
         {/* Right: Relationship Links Matrix */}
-        <div className="bg-[#0E1219] border border-slate-800 rounded-lg p-4 space-y-3">
-          <div className="pb-1 border-b border-slate-800">
-            <h3 className="text-xs font-bold text-slate-200 uppercase flex items-center gap-2">
-              <Share2 className="w-3.5 h-3.5 text-blue-400" />
+        <div className="bg-[#353535] border border-white rounded-lg p-4 space-y-3">
+          <div className="pb-1 border-b border-white">
+            <h3 className="text-xs font-bold text-white uppercase flex items-center gap-2">
+              <Share2 className="w-3.5 h-3.5 text-white" />
               <span>OBSERVED_EDGES ({network?.edges.length || 0})</span>
             </h3>
           </div>
@@ -264,16 +264,16 @@ export function GraphSyndicateVisualizer() {
             {network?.edges.map((edge, idx) => (
               <div
                 key={`${edge.source}-${edge.target}-${idx}`}
-                className="p-2 rounded bg-[#090C10] border border-slate-800 space-y-1 text-xs"
+                className="p-2 rounded bg-[#353535] border border-white space-y-1 text-xs text-white"
               >
-                <div className="flex items-center justify-between text-[10px] text-slate-500 uppercase tracking-wider">
-                  <span className="text-blue-400 font-semibold">{edge.relationship}</span>
+                <div className="flex items-center justify-between text-[10px] text-neutral-300 uppercase tracking-wider">
+                  <span className="text-white font-bold">{edge.relationship}</span>
                   <span>WEIGHT: {edge.weight}</span>
                 </div>
-                <div className="text-slate-300 truncate text-[11px]">
-                  <span className="text-slate-200">{edge.source}</span>
-                  <span className="text-slate-600 mx-1.5">──►</span>
-                  <span className="text-slate-400">{edge.target}</span>
+                <div className="text-neutral-200 truncate text-[11px]">
+                  <span className="text-white font-semibold">{edge.source}</span>
+                  <span className="text-neutral-400 mx-1.5">──►</span>
+                  <span className="text-white">{edge.target}</span>
                 </div>
               </div>
             ))}

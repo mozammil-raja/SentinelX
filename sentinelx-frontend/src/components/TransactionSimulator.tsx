@@ -355,23 +355,23 @@ export function TransactionSimulator() {
   const currencySymbol = currentCustomer.currency === 'USD' ? '$' : '₹';
 
   return (
-    <div className="bg-[#0E1219] border border-slate-800 rounded-lg p-5 lg:p-6 space-y-6">
+    <div className="bg-[#353535] border border-white rounded-lg p-5 lg:p-6 space-y-6 text-white">
       {/* Top Banner & Dimension Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white pb-4">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-slate-900 border border-slate-700 flex items-center justify-center text-slate-200">
-            <Activity className="w-4 h-4 text-blue-400" />
+          <div className="w-8 h-8 rounded bg-[#353535] border border-white flex items-center justify-center text-white">
+            <Activity className="w-4 h-4 text-white" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-mono font-bold text-slate-100 tracking-wide uppercase">
+              <h2 className="text-base font-mono font-bold text-white tracking-wide uppercase">
                 RISK_EVALUATION_WORKBENCH // TRANSACTION_SIMULATOR
               </h2>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-700">
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#353535] text-white border border-white">
                 LIVE_MODE
               </span>
             </div>
-            <p className="text-xs text-slate-400 font-mono mt-0.5">
+            <p className="text-xs text-neutral-300 font-mono mt-0.5">
               Multi-dimensional evaluation: [DIM_A: BEHAVIOR] • [DIM_B: VELOCITY] • [DIM_C: ENTITY_GRAPH]
             </p>
           </div>
@@ -379,14 +379,14 @@ export function TransactionSimulator() {
 
         {/* Idempotency & Latency Telemetry */}
         <div className="flex items-center gap-2 self-start sm:self-auto font-mono text-xs">
-          <div className="flex items-center gap-2 bg-[#090C10] border border-slate-800 rounded px-2.5 py-1">
+          <div className="flex items-center gap-2 bg-[#353535] border border-white rounded px-2.5 py-1">
             <button
               type="button"
               onClick={() => setEnableIdempotency(!enableIdempotency)}
               className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] transition-colors ${
                 enableIdempotency
-                  ? 'bg-blue-950 text-blue-300 border border-blue-800/80 font-semibold'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-white text-black font-bold border border-white'
+                  : 'text-white hover:bg-white/10'
               }`}
             >
               <KeyRound className="w-3 h-3" />
@@ -394,12 +394,12 @@ export function TransactionSimulator() {
             </button>
 
             {enableIdempotency && (
-              <div className="flex items-center gap-1.5 text-[11px] pl-1 text-slate-300 border-l border-slate-800">
-                <span className="text-slate-400">{idempotencyKey}</span>
+              <div className="flex items-center gap-1.5 text-[11px] pl-1 text-white border-l border-white">
+                <span className="text-neutral-300">{idempotencyKey}</span>
                 <button
                   type="button"
                   onClick={regenerateIdempotencyKey}
-                  className="p-0.5 text-slate-500 hover:text-slate-200 transition-colors"
+                  className="p-0.5 text-white hover:bg-white/20 rounded transition-colors"
                   title="Generate new token"
                 >
                   <RotateCw className="w-3 h-3" />
@@ -408,9 +408,9 @@ export function TransactionSimulator() {
             )}
 
             {lastResult && (
-              <div className="flex items-center gap-1 text-[11px] pl-2 border-l border-slate-800 text-slate-400">
+              <div className="flex items-center gap-1 text-[11px] pl-2 border-l border-white text-white">
                 <span>LATENCY:</span>
-                <span className="text-emerald-400 font-bold">{lastResult.evaluationTimeMs}ms</span>
+                <span className="text-white font-bold">{lastResult.evaluationTimeMs}ms</span>
               </div>
             )}
           </div>
@@ -420,30 +420,18 @@ export function TransactionSimulator() {
       {/* SECTION 1: Customer Profile Baseline Selection */}
       <div className="space-y-2.5">
         <div className="flex items-center justify-between font-mono">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-300">
-            <UserCheck className="w-3.5 h-3.5 text-blue-400" />
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white">
+            <UserCheck className="w-3.5 h-3.5 text-white" />
             <span>01 // SELECT CUSTOMER PROFILE (BEHAVIORAL BASELINE)</span>
           </div>
-          <span className="text-[11px] text-slate-400">
-            ACTIVE_ACCOUNT: <span className="text-slate-200 font-semibold">{currentCustomer.name}</span> ({currentCustomer.usualLocation?.split(',')[0]})
+          <span className="text-[11px] text-neutral-300">
+            ACTIVE_ACCOUNT: <span className="text-white font-bold">{currentCustomer.name}</span> ({currentCustomer.usualLocation?.split(',')[0]})
           </span>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 font-mono">
           {customers.map((c) => {
             const isSelected = c.id === selectedCustomerId;
-            const isLow = c.riskSegment === 'LOW';
-            const isMed = c.riskSegment === 'MEDIUM';
-            const isHigh = c.riskSegment === 'HIGH';
-
-            const tierBadge = isLow
-              ? 'text-emerald-400 border-emerald-800/80 bg-emerald-950/40'
-              : isMed
-              ? 'text-amber-400 border-amber-800/80 bg-amber-950/40'
-              : isHigh
-              ? 'text-orange-400 border-orange-800/80 bg-orange-950/40'
-              : 'text-red-400 border-red-800/80 bg-red-950/40';
-
             const sym = c.currency === 'USD' ? '$' : '₹';
 
             return (
@@ -453,30 +441,30 @@ export function TransactionSimulator() {
                 onClick={() => handleSelectCustomer(c.id)}
                 className={`p-2.5 rounded text-left transition-all border flex flex-col justify-between space-y-2 ${
                   isSelected
-                    ? 'bg-slate-800/90 border-blue-500 ring-1 ring-blue-500/80 text-slate-100'
-                    : 'bg-[#090C10] border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                    ? 'bg-white text-black font-semibold border-white ring-2 ring-white'
+                    : 'bg-[#353535] border-white text-white hover:bg-white/10'
                 }`}
               >
                 <div>
                   <div className="flex items-center justify-between gap-1 mb-1">
-                    <span className="font-semibold text-xs text-slate-100 truncate">{c.name}</span>
-                    <span className={`text-[9px] px-1 py-0.2 rounded border ${tierBadge}`}>
+                    <span className="font-bold text-xs truncate">{c.name}</span>
+                    <span className={`text-[9px] px-1 py-0.2 rounded border ${isSelected ? 'border-black text-black' : 'border-white text-white'}`}>
                       {c.riskSegment}
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-400 truncate">{c.occupation || c.email}</p>
+                  <p className={`text-[10px] truncate ${isSelected ? 'text-neutral-700' : 'text-neutral-300'}`}>{c.occupation || c.email}</p>
                 </div>
 
-                <div className="border-t border-slate-800/80 pt-1.5 space-y-0.5 text-[10px] text-slate-400">
+                <div className={`border-t pt-1.5 space-y-0.5 text-[10px] ${isSelected ? 'border-neutral-300 text-neutral-800' : 'border-white/60 text-neutral-300'}`}>
                   <div className="flex items-center justify-between">
-                    <span>SPEND_LIMIT:</span>
-                    <span className="text-slate-200">
+                    <span>SPEND:</span>
+                    <span className="font-bold">
                       {sym}{c.typicalSpendMin?.toLocaleString()}–{sym}{c.typicalSpendMax?.toLocaleString()}
                     </span>
                   </div>
                   <div className="flex items-center justify-between truncate">
                     <span>REGION:</span>
-                    <span className="text-slate-200 truncate">{c.usualLocation?.split(',')[0]}</span>
+                    <span className="truncate">{c.usualLocation?.split(',')[0]}</span>
                   </div>
                 </div>
               </button>
@@ -486,12 +474,12 @@ export function TransactionSimulator() {
       </div>
 
       {/* SECTION 2: Transaction Details & Anomaly Ingestion Matrix */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 pt-3 border-t border-slate-800 font-mono">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 pt-3 border-t border-white font-mono">
         {/* Left: Input Form + Anomaly Injections */}
         <div className="lg:col-span-7 space-y-4">
-          <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-300">
+          <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-white">
             <div className="flex items-center gap-2">
-              <SlidersHorizontal className="w-3.5 h-3.5 text-blue-400" />
+              <SlidersHorizontal className="w-3.5 h-3.5 text-white" />
               <span>02 // TRANSACTION PARAMETERS &amp; ANOMALY INJECTION</span>
             </div>
             <button
@@ -508,7 +496,7 @@ export function TransactionSimulator() {
                   : 1200;
                 setAmount(def);
               }}
-              className="text-[10px] text-slate-400 hover:text-slate-200 flex items-center gap-1 transition-colors"
+              className="text-[10px] text-white px-2 py-0.5 rounded border border-white hover:bg-white hover:text-black flex items-center gap-1 transition-colors"
             >
               <RotateCcw className="w-3 h-3" />
               <span>RESET_BASELINE</span>
@@ -518,14 +506,14 @@ export function TransactionSimulator() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Amount Input */}
             <div className="space-y-1">
-              <label className="text-[11px] text-slate-400 flex items-center justify-between">
+              <label className="text-[11px] text-neutral-200 flex items-center justify-between">
                 <span>AMOUNT ({currencySymbol})</span>
-                <span className="text-[10px] text-slate-500">
+                <span className="text-[10px] text-neutral-300">
                   EXP: {currencySymbol}{currentCustomer.typicalSpendMin?.toLocaleString()}–{currencySymbol}{currentCustomer.typicalSpendMax?.toLocaleString()}
                 </span>
               </label>
               <div className="relative">
-                <span className="absolute left-2.5 top-1.5 text-xs text-slate-500">{currencySymbol}</span>
+                <span className="absolute left-2.5 top-1.5 text-xs text-neutral-300">{currencySymbol}</span>
                 <input
                   type="number"
                   min="1"
@@ -534,24 +522,24 @@ export function TransactionSimulator() {
                     setAmount(Number(e.target.value));
                     setIsUnusualAmount(false);
                   }}
-                  className="w-full bg-[#090C10] border border-slate-800 focus:border-blue-500 rounded pl-6 pr-3 py-1.5 text-xs text-slate-100 focus:outline-none transition-colors"
+                  className="w-full bg-[#353535] border border-white rounded pl-6 pr-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white transition-colors"
                 />
               </div>
             </div>
 
             {/* Merchant Selector */}
             <div className="space-y-1">
-              <label className="text-[11px] text-slate-400">TARGET_MERCHANT</label>
+              <label className="text-[11px] text-neutral-200">TARGET_MERCHANT</label>
               <select
                 value={selectedMerchantId}
                 onChange={(e) => {
                   setSelectedMerchantId(e.target.value);
                   setIsBlacklistedMerchant(e.target.value === 'mer_black_1');
                 }}
-                className="w-full bg-[#090C10] border border-slate-800 focus:border-blue-500 rounded px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none transition-colors"
+                className="w-full bg-[#353535] border border-white rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white transition-colors"
               >
                 {MERCHANTS.map((m) => (
-                  <option key={m.id} value={m.id}>
+                  <option key={m.id} value={m.id} className="bg-[#353535] text-white">
                     {m.name}
                   </option>
                 ))}
@@ -560,108 +548,108 @@ export function TransactionSimulator() {
           </div>
 
           {/* Anomaly Vector Matrix */}
-          <div className="space-y-2 bg-[#090C10] border border-slate-800 rounded p-3">
-            <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider flex items-center justify-between pb-1 border-b border-slate-800">
+          <div className="space-y-2 bg-[#353535] border border-white rounded p-3">
+            <div className="text-[11px] text-white font-semibold uppercase tracking-wider flex items-center justify-between pb-1 border-b border-white">
               <span className="flex items-center gap-1.5">
-                <ShieldAlert className="w-3.5 h-3.5 text-slate-400" />
+                <ShieldAlert className="w-3.5 h-3.5 text-white" />
                 <span>INJECT ANOMALY SIGNALS:</span>
               </span>
-              <span className="text-[10px] text-slate-500">SELECT TO SIMULATE ATTACK</span>
+              <span className="text-[10px] text-neutral-300">SELECT TO SIMULATE ATTACK</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
               {/* Condition 1: Unusual Amount Spike */}
               <label className={`flex items-start gap-2.5 p-2 rounded border cursor-pointer transition-colors ${
-                isUnusualAmount ? 'bg-amber-950/30 border-amber-700/80 text-amber-200' : 'bg-[#0E1219] border-slate-800 text-slate-300 hover:border-slate-700'
+                isUnusualAmount ? 'bg-white text-black font-bold border-white' : 'bg-[#353535] border-white text-white hover:bg-white/10'
               }`}>
                 <input
                   type="checkbox"
                   checked={isUnusualAmount}
                   onChange={(e) => handleToggleUnusualAmount(e.target.checked)}
-                  className="mt-0.5 rounded border-slate-700 text-blue-600 focus:ring-0"
+                  className="mt-0.5 rounded border-white accent-black"
                 />
                 <div>
                   <div className="font-semibold text-[11px] flex items-center justify-between">
                     <span>ANOMALY_SPEND_SPIKE</span>
-                    <span className="text-[10px] text-amber-400 font-bold">+50 PTS</span>
+                    <span className={`text-[10px] font-bold ${isUnusualAmount ? 'text-black' : 'text-white'}`}>+50 PTS</span>
                   </div>
-                  <p className="text-[10px] text-slate-500">Forces spend significantly above historical baseline</p>
+                  <p className={`text-[10px] ${isUnusualAmount ? 'text-neutral-800 font-normal' : 'text-neutral-300'}`}>Forces spend significantly above historical baseline</p>
                 </div>
               </label>
 
               {/* Condition 2: New / Untrusted Device */}
               <label className={`flex items-start gap-2.5 p-2 rounded border cursor-pointer transition-colors ${
-                isNewDevice ? 'bg-blue-950/30 border-blue-700/80 text-blue-200' : 'bg-[#0E1219] border-slate-800 text-slate-300 hover:border-slate-700'
+                isNewDevice ? 'bg-white text-black font-bold border-white' : 'bg-[#353535] border-white text-white hover:bg-white/10'
               }`}>
                 <input
                   type="checkbox"
                   checked={isNewDevice}
                   onChange={(e) => setIsNewDevice(e.target.checked)}
-                  className="mt-0.5 rounded border-slate-700 text-blue-600 focus:ring-0"
+                  className="mt-0.5 rounded border-white accent-black"
                 />
                 <div>
                   <div className="font-semibold text-[11px] flex items-center justify-between">
                     <span>UNTRUSTED_HARDWARE_FP</span>
-                    <span className="text-[10px] text-blue-400 font-bold">+25 PTS</span>
+                    <span className={`text-[10px] font-bold ${isNewDevice ? 'text-black' : 'text-white'}`}>+25 PTS</span>
                   </div>
-                  <p className="text-[10px] text-slate-500">Unrecognized client SHA-256 hardware hash</p>
+                  <p className={`text-[10px] ${isNewDevice ? 'text-neutral-800 font-normal' : 'text-neutral-300'}`}>Unrecognized client SHA-256 hardware hash</p>
                 </div>
               </label>
 
               {/* Condition 3: Geolocation / IP Anomaly */}
               <label className={`flex items-start gap-2.5 p-2 rounded border cursor-pointer transition-colors ${
-                isLocationHop ? 'bg-cyan-950/30 border-cyan-700/80 text-cyan-200' : 'bg-[#0E1219] border-slate-800 text-slate-300 hover:border-slate-700'
+                isLocationHop ? 'bg-white text-black font-bold border-white' : 'bg-[#353535] border-white text-white hover:bg-white/10'
               }`}>
                 <input
                   type="checkbox"
                   checked={isLocationHop}
                   onChange={(e) => setIsLocationHop(e.target.checked)}
-                  className="mt-0.5 rounded border-slate-700 text-blue-600 focus:ring-0"
+                  className="mt-0.5 rounded border-white accent-black"
                 />
                 <div>
                   <div className="font-semibold text-[11px] flex items-center justify-between">
                     <span>GEO_IP_SUBNET_HOP</span>
-                    <span className="text-[10px] text-cyan-400 font-bold">+60 PTS</span>
+                    <span className={`text-[10px] font-bold ${isLocationHop ? 'text-black' : 'text-white'}`}>+60 PTS</span>
                   </div>
-                  <p className="text-[10px] text-slate-500">Originates outside customer usual subnet/region</p>
+                  <p className={`text-[10px] ${isLocationHop ? 'text-neutral-800 font-normal' : 'text-neutral-300'}`}>Originates outside customer usual subnet/region</p>
                 </div>
               </label>
 
               {/* Condition 4: Suspicious Merchant */}
               <label className={`flex items-start gap-2.5 p-2 rounded border cursor-pointer transition-colors ${
-                isBlacklistedMerchant ? 'bg-red-950/30 border-red-700/80 text-red-200' : 'bg-[#0E1219] border-slate-800 text-slate-300 hover:border-slate-700'
+                isBlacklistedMerchant ? 'bg-white text-black font-bold border-white' : 'bg-[#353535] border-white text-white hover:bg-white/10'
               }`}>
                 <input
                   type="checkbox"
                   checked={isBlacklistedMerchant}
                   onChange={(e) => handleToggleMerchant(e.target.checked)}
-                  className="mt-0.5 rounded border-slate-700 text-blue-600 focus:ring-0"
+                  className="mt-0.5 rounded border-white accent-black"
                 />
                 <div>
                   <div className="font-semibold text-[11px] flex items-center justify-between">
                     <span>WATCHLIST_MERCHANT</span>
-                    <span className="text-[10px] text-red-400 font-bold">+80 PTS</span>
+                    <span className={`text-[10px] font-bold ${isBlacklistedMerchant ? 'text-black' : 'text-white'}`}>+80 PTS</span>
                   </div>
-                  <p className="text-[10px] text-slate-500">Routes to blacklisted / sanctioned entity</p>
+                  <p className={`text-[10px] ${isBlacklistedMerchant ? 'text-neutral-800 font-normal' : 'text-neutral-300'}`}>Routes to blacklisted / sanctioned entity</p>
                 </div>
               </label>
 
               {/* Condition 5: Rapid Transaction Velocity (Redis) */}
               <label className={`flex items-start gap-2.5 p-2 rounded border cursor-pointer transition-colors sm:col-span-2 ${
-                isVelocityBurst ? 'bg-purple-950/30 border-purple-700/80 text-purple-200' : 'bg-[#0E1219] border-slate-800 text-slate-300 hover:border-slate-700'
+                isVelocityBurst ? 'bg-white text-black font-bold border-white' : 'bg-[#353535] border-white text-white hover:bg-white/10'
               }`}>
                 <input
                   type="checkbox"
                   checked={isVelocityBurst}
                   onChange={(e) => setIsVelocityBurst(e.target.checked)}
-                  className="mt-0.5 rounded border-slate-700 text-blue-600 focus:ring-0"
+                  className="mt-0.5 rounded border-white accent-black"
                 />
                 <div>
                   <div className="font-semibold text-[11px] flex items-center justify-between">
                     <span>VELOCITY_BURST_ATTACK (REDIS_ZSET)</span>
-                    <span className="text-[10px] text-purple-400 font-bold">+40 PTS</span>
+                    <span className={`text-[10px] font-bold ${isVelocityBurst ? 'text-black' : 'text-white'}`}>+40 PTS</span>
                   </div>
-                  <p className="text-[10px] text-slate-500">Fires 6 sequential payments in &lt;1s to trip sliding window rate limit</p>
+                  <p className={`text-[10px] ${isVelocityBurst ? 'text-neutral-800 font-normal' : 'text-neutral-300'}`}>Fires 6 sequential payments in &lt;1s to trip sliding window rate limit</p>
                 </div>
               </label>
             </div>
@@ -672,7 +660,7 @@ export function TransactionSimulator() {
             type="button"
             disabled={loading || bursting}
             onClick={handleRunSimulation}
-            className="w-full py-2.5 px-4 rounded bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-mono font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+            className="w-full py-2.5 px-4 rounded bg-white hover:bg-neutral-200 active:bg-neutral-300 text-black font-mono font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-colors border border-white disabled:opacity-50"
           >
             {loading || bursting ? (
               <>
@@ -681,7 +669,7 @@ export function TransactionSimulator() {
               </>
             ) : (
               <>
-                <Play className="w-3.5 h-3.5 fill-white" />
+                <Play className="w-3.5 h-3.5 fill-black" />
                 <span>EXECUTE_PAYMENT_SCORING</span>
               </>
             )}
@@ -690,43 +678,35 @@ export function TransactionSimulator() {
 
         {/* Right: Step 3 & 4 (Decision Verdict & Signal Decomposition) */}
         <div className="lg:col-span-5 space-y-3 font-mono">
-          <div className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-            <Activity className="w-3.5 h-3.5 text-blue-400" />
+          <div className="text-xs font-semibold uppercase tracking-wider text-white flex items-center gap-2">
+            <Activity className="w-3.5 h-3.5 text-white" />
             <span>03 // DECISION VERDICT &amp; SIGNAL AUDIT</span>
           </div>
 
           {!lastResult ? (
-            <div className="h-[340px] border border-slate-800 rounded p-6 flex flex-col items-center justify-center text-center space-y-2 text-slate-500 bg-[#090C10]">
-              <HelpCircle className="w-6 h-6 text-slate-600" />
-              <p className="text-xs font-semibold text-slate-400 uppercase">NO_TRANSACTION_EVALUATED</p>
-              <p className="text-[11px] text-slate-500 max-w-xs font-sans">
+            <div className="h-[340px] border border-white rounded p-6 flex flex-col items-center justify-center text-center space-y-2 text-neutral-300 bg-[#353535]">
+              <HelpCircle className="w-6 h-6 text-white" />
+              <p className="text-xs font-semibold text-white uppercase">NO_TRANSACTION_EVALUATED</p>
+              <p className="text-[11px] text-neutral-300 max-w-xs font-sans">
                 Select a customer profile, configure anomaly vectors, and click EXECUTE_PAYMENT_SCORING to evaluate against active rules.
               </p>
             </div>
           ) : (
             <div className="space-y-3">
               {/* Verdict Summary Block */}
-              <div
-                className={`p-3.5 rounded border flex items-start justify-between gap-3 ${
-                  lastResult.decision === 'ALLOW'
-                    ? 'bg-[#0B1A14] border-emerald-800/80 text-emerald-300'
-                    : lastResult.decision === 'REVIEW'
-                    ? 'bg-[#1A140B] border-amber-800/80 text-amber-300'
-                    : 'bg-[#1A0B0B] border-red-800/80 text-red-300'
-                }`}
-              >
+              <div className="p-3.5 rounded border border-white bg-[#353535] flex items-start justify-between gap-3 text-white">
                 <div className="flex items-start gap-3">
-                  {lastResult.decision === 'ALLOW' && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />}
-                  {lastResult.decision === 'REVIEW' && <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />}
-                  {lastResult.decision === 'BLOCK' && <XCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />}
+                  {lastResult.decision === 'ALLOW' && <CheckCircle2 className="w-5 h-5 text-white shrink-0 mt-0.5" />}
+                  {lastResult.decision === 'REVIEW' && <AlertTriangle className="w-5 h-5 text-white shrink-0 mt-0.5" />}
+                  {lastResult.decision === 'BLOCK' && <XCircle className="w-5 h-5 text-white shrink-0 mt-0.5" />}
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-bold tracking-wider uppercase">VERDICT: {lastResult.decision}</span>
-                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-black/40 border border-current font-bold">
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-white text-black border border-white font-bold">
                         SCORE: {lastResult.finalScore}/100
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-300 mt-1 font-sans">
+                    <p className="text-[11px] text-neutral-200 mt-1 font-sans">
                       {lastResult.decision === 'ALLOW'
                         ? 'Low risk score (< 30). Transaction attributes conform to customer baseline.'
                         : lastResult.decision === 'REVIEW'
@@ -738,43 +718,37 @@ export function TransactionSimulator() {
               </div>
 
               {/* Visual Score Meter */}
-              <div className="bg-[#090C10] border border-slate-800 rounded p-2.5 space-y-1">
-                <div className="flex items-center justify-between text-[10px] text-slate-500">
+              <div className="bg-[#353535] border border-white rounded p-2.5 space-y-1">
+                <div className="flex items-center justify-between text-[10px] text-neutral-300">
                   <span>ALLOW [0-29]</span>
                   <span>REVIEW [30-69]</span>
                   <span>BLOCK [70-100]</span>
                 </div>
-                <div className="w-full bg-slate-900 h-1.5 rounded overflow-hidden flex">
+                <div className="w-full bg-[#2a2a2a] h-2 rounded border border-white overflow-hidden flex">
                   <div
                     style={{ width: `${Math.min(100, lastResult.finalScore)}%` }}
-                    className={`h-full transition-all duration-300 ${
-                      lastResult.finalScore < 30
-                        ? 'bg-emerald-500'
-                        : lastResult.finalScore < 70
-                        ? 'bg-amber-500'
-                        : 'bg-red-500'
-                    }`}
+                    className="h-full bg-white transition-all duration-300"
                   />
                 </div>
               </div>
 
               {/* Triggered Signals Audit List */}
-              <div className="bg-[#090C10] border border-slate-800 rounded p-3 space-y-2">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-1 text-[11px]">
-                  <span className="font-semibold text-slate-300 uppercase">FIRED_RISK_SIGNALS</span>
-                  <span className="text-[10px] text-slate-500">{lastResult.firedRules.length} DETECTED</span>
+              <div className="bg-[#353535] border border-white rounded p-3 space-y-2">
+                <div className="flex items-center justify-between border-b border-white pb-1 text-[11px]">
+                  <span className="font-semibold text-white uppercase">FIRED_RISK_SIGNALS</span>
+                  <span className="text-[10px] text-neutral-300">{lastResult.firedRules.length} DETECTED</span>
                 </div>
 
                 {lastResult.firedRules.length === 0 ? (
-                  <p className="text-xs text-emerald-400 py-0.5">
+                  <p className="text-xs text-white py-0.5 font-sans">
                     [CLEAN] All transaction parameters conform to account baseline.
                   </p>
                 ) : (
                   <div className="space-y-1 text-xs">
                     {lastResult.firedRules.map((ruleText, idx) => (
-                      <div key={idx} className="p-1.5 rounded bg-[#0E1219] border border-slate-800 flex items-start gap-2 text-slate-300">
-                        <span className="text-blue-400 font-bold text-[10px] shrink-0 mt-0.5">#{idx + 1}</span>
-                        <span className="text-[11px] leading-tight font-sans">{ruleText}</span>
+                      <div key={idx} className="p-1.5 rounded bg-[#353535] border border-white flex items-start gap-2 text-white">
+                        <span className="font-bold text-[10px] shrink-0 mt-0.5">#{idx + 1}</span>
+                        <span className="text-[11px] leading-tight font-sans text-neutral-200">{ruleText}</span>
                       </div>
                     ))}
                   </div>
@@ -783,57 +757,51 @@ export function TransactionSimulator() {
 
               {/* What-If Live Sensitivity Matrix */}
               {whatIfCalculated && (
-                <div className="bg-[#090C10] border border-slate-800 rounded p-3 space-y-2">
+                <div className="bg-[#353535] border border-white rounded p-3 space-y-2">
                   <div className="flex items-center justify-between text-[11px]">
-                    <span className="font-semibold text-slate-300 uppercase">WHAT_IF_SENSITIVITY_MATRIX</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded border font-bold ${
-                      whatIfCalculated.verdict === 'ALLOW'
-                        ? 'bg-emerald-950/40 text-emerald-400 border-emerald-800/60'
-                        : whatIfCalculated.verdict === 'REVIEW'
-                        ? 'bg-amber-950/40 text-amber-400 border-amber-800/60'
-                        : 'bg-red-950/40 text-red-400 border-red-800/60'
-                    }`}>
+                    <span className="font-semibold text-white uppercase">WHAT_IF_SENSITIVITY_MATRIX</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded border border-white bg-white text-black font-bold">
                       {whatIfCalculated.verdict} ({whatIfCalculated.score} PTS)
                     </span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-                    <label className="flex items-center gap-1.5 p-1 rounded bg-[#0E1219] border border-slate-800 text-slate-300 cursor-pointer">
+                    <label className={`flex items-center gap-1.5 p-1 rounded border border-white cursor-pointer ${whatIfAmountHigh ? 'bg-white text-black font-bold' : 'text-white hover:bg-white/10'}`}>
                       <input
                         type="checkbox"
                         checked={whatIfAmountHigh}
                         onChange={(e) => setWhatIfAmountHigh(e.target.checked)}
-                        className="rounded border-slate-700 text-blue-600"
+                        className="rounded border-white accent-black"
                       />
                       <span>AMOUNT_SPEND</span>
                     </label>
 
-                    <label className="flex items-center gap-1.5 p-1 rounded bg-[#0E1219] border border-slate-800 text-slate-300 cursor-pointer">
+                    <label className={`flex items-center gap-1.5 p-1 rounded border border-white cursor-pointer ${whatIfUntrusted ? 'bg-white text-black font-bold' : 'text-white hover:bg-white/10'}`}>
                       <input
                         type="checkbox"
                         checked={whatIfUntrusted}
                         onChange={(e) => setWhatIfUntrusted(e.target.checked)}
-                        className="rounded border-slate-700 text-blue-600"
+                        className="rounded border-white accent-black"
                       />
                       <span>DEVICE_FP</span>
                     </label>
 
-                    <label className="flex items-center gap-1.5 p-1 rounded bg-[#0E1219] border border-slate-800 text-slate-300 cursor-pointer">
+                    <label className={`flex items-center gap-1.5 p-1 rounded border border-white cursor-pointer ${whatIfLocationHop ? 'bg-white text-black font-bold' : 'text-white hover:bg-white/10'}`}>
                       <input
                         type="checkbox"
                         checked={whatIfLocationHop}
                         onChange={(e) => setWhatIfLocationHop(e.target.checked)}
-                        className="rounded border-slate-700 text-blue-600"
+                        className="rounded border-white accent-black"
                       />
                       <span>GEO_SUBNET</span>
                     </label>
 
-                    <label className="flex items-center gap-1.5 p-1 rounded bg-[#0E1219] border border-slate-800 text-slate-300 cursor-pointer">
+                    <label className={`flex items-center gap-1.5 p-1 rounded border border-white cursor-pointer ${whatIfMerchantBlacklisted ? 'bg-white text-black font-bold' : 'text-white hover:bg-white/10'}`}>
                       <input
                         type="checkbox"
                         checked={whatIfMerchantBlacklisted}
                         onChange={(e) => setWhatIfMerchantBlacklisted(e.target.checked)}
-                        className="rounded border-slate-700 text-blue-600"
+                        className="rounded border-white accent-black"
                       />
                       <span>WATCHLIST</span>
                     </label>
