@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { api, TransactionRequest, DecisionResponse, CustomerProfile } from '@/lib/api';
+import { api, TransactionRequest, DecisionResponse, CustomerProfile, TransactionResponse } from '@/lib/api';
 import { FALLBACK_CUSTOMERS, MERCHANTS } from '@/lib/mockData';
 import {
   Sparkles,
@@ -18,31 +18,46 @@ import {
   Zap,
   FileText,
   Globe,
+  ChevronDown,
+  ChevronUp,
+  Network,
+  Clock,
+  Laptop,
+  Smartphone,
+  AlertTriangle,
+  ArrowRight,
 } from 'lucide-react';
 
 let burstCounter = 1000;
 
 export function TransactionSimulator() {
   const [customers, setCustomers] = useState<CustomerProfile[]>(FALLBACK_CUSTOMERS);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('usr_sarah');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('usr_alice');
   const [loading, setLoading] = useState(false);
   const [bursting, setBursting] = useState(false);
+  const [burstProgress, setBurstProgress] = useState<{ current: number; total: number; fired: boolean } | null>(null);
   const [lastResult, setLastResult] = useState<DecisionResponse | null>(null);
+  const [recentTransactions, setRecentTransactions] = useState<TransactionResponse[]>([]);
+  const [showHistoryDrawer, setShowHistoryDrawer] = useState<boolean>(false);
 
-  // Idempotency Controls
+  // Simulation Controls & Engine Mode
+  const [activeScenario, setActiveScenario] = useState<'CLEAN' | 'ATO' | 'VELOCITY' | 'WATCHLIST' | 'COLLUSION' | 'CUSTOM'>('CLEAN');
+  const [inspectorMode, setInspectorMode] = useState<boolean>(false);
+  const [inspectorStep, setInspectorStep] = useState<number>(0);
   const [enableIdempotency, setEnableIdempotency] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState('idemp_demo_001');
 
   // Form State
-  const [amount, setAmount] = useState<number>(1200);
-  const [selectedMerchantId, setSelectedMerchantId] = useState<string>('mer_grocery_fresh');
-
-  // Suspicious Condition Toggles
-  const [isUnusualAmount, setIsUnusualAmount] = useState<boolean>(false);
+  const [amount, setAmount] = useState<number>(18.50);
+  const [selectedMerchantId, setSelectedMerchantId] = useState<string>('mer_coffee_beans');
+  const [isVelocityBurst, setIsVelocityBurst] = useState<boolean>(false);
   const [isNewDevice, setIsNewDevice] = useState<boolean>(false);
   const [isLocationHop, setIsLocationHop] = useState<boolean>(false);
   const [isBlacklistedMerchant, setIsBlacklistedMerchant] = useState<boolean>(false);
-  const [isVelocityBurst, setIsVelocityBurst] = useState<boolean>(false);
+  const [isCollusionDevice, setIsCollusionDevice] = useState<boolean>(false);
+
+  // Interactive Sensitivity Playground State
+  const [sensitivityAmount, setSensitivityAmount] = useState<number>(18.50);
 
   // Fetch live customer profiles on mount
   useEffect(() => {
@@ -54,7 +69,7 @@ export function TransactionSimulator() {
           setCustomers(data);
         }
       } catch {
-        // Fallback static profiles
+        // Use fallback profiles
       }
     }
     loadCustomers();
@@ -67,40 +82,113 @@ export function TransactionSimulator() {
     return customers.find((c) => c.id === selectedCustomerId) || customers[0] || FALLBACK_CUSTOMERS[0];
   }, [customers, selectedCustomerId]);
 
+  // Fetch recent legitimate transactions for selected persona
+  useEffect(() => {
+    let isMounted = true;
+    async function loadHistory() {
+      try {
+        const data = await api.transactions.getRecent(0, 3, selectedCustomerId);
+        if (isMounted && data) {
+          setRecentTransactions(data);
+        }
+      } catch {
+        if (isMounted) setRecentTransactions([]);
+      }
+    }
+    loadHistory();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedCustomerId]);
+
+  const currencySymbol = useMemo(() => {
+    if (currentCustomer.currency === 'USD') return '$';
+    if (currentCustomer.currency === 'INR') return '₹';
+    if (currentCustomer.currency === 'GBP') return '£';
+    if (currentCustomer.currency === 'EUR') return '€';
+    return '$';
+  }, [currentCustomer.currency]);
+
+  // Initialize defaults when selecting customer
   const handleSelectCustomer = (customerId: string) => {
     setSelectedCustomerId(customerId);
     const target = customers.find((c) => c.id === customerId) || FALLBACK_CUSTOMERS[0];
     const defaultAmount = target.typicalSpendMin
-      ? Math.round((target.typicalSpendMin + (target.typicalSpendMax || 3000)) / 2)
-      : (target.currency === 'USD' ? 45 : 1200);
-    
+      ? Number(((target.typicalSpendMin + (target.typicalSpendMax || 50)) / 2).toFixed(2))
+      : 25.00;
+
     setAmount(defaultAmount);
-    setIsUnusualAmount(false);
+    setSensitivityAmount(defaultAmount);
+    setActiveScenario('CLEAN');
+    setIsVelocityBurst(false);
     setIsNewDevice(false);
     setIsLocationHop(false);
     setIsBlacklistedMerchant(false);
-    setIsVelocityBurst(false);
+    setIsCollusionDevice(false);
+    setSelectedMerchantId(target.currency === 'INR' ? 'mer_indigo_airlines' : 'mer_coffee_beans');
     setLastResult(null);
+    setBurstProgress(null);
   };
 
-  const handleToggleUnusualAmount = (checked: boolean) => {
-    setIsUnusualAmount(checked);
-    if (checked) {
-      const baselineMax = currentCustomer.typicalSpendMax || 3000;
-      setAmount(baselineMax * 6.5);
-    } else {
-      const defaultAmount = currentCustomer.typicalSpendMin
-        ? Math.round((currentCustomer.typicalSpendMin + (currentCustomer.typicalSpendMax || 3000)) / 2)
-        : (currentCustomer.currency === 'USD' ? 45 : 1200);
-      setAmount(defaultAmount);
-    }
-  };
+  // Scenario Presets Trigger
+  const handleApplyScenario = (preset: 'CLEAN' | 'ATO' | 'VELOCITY' | 'WATCHLIST' | 'COLLUSION') => {
+    setActiveScenario(preset);
+    setLastResult(null);
+    setBurstProgress(null);
 
-  const handleToggleMerchant = (checked: boolean) => {
-    setIsBlacklistedMerchant(checked);
-    if (checked) {
+    const minSpend = currentCustomer.typicalSpendMin || 10;
+    const maxSpend = currentCustomer.typicalSpendMax || 50;
+    const baselineMid = Number(((minSpend + maxSpend) / 2).toFixed(2));
+
+    if (preset === 'CLEAN') {
+      setAmount(baselineMid);
+      setSensitivityAmount(baselineMid);
+      setIsVelocityBurst(false);
+      setIsNewDevice(false);
+      setIsLocationHop(false);
+      setIsBlacklistedMerchant(false);
+      setIsCollusionDevice(false);
+      setSelectedMerchantId(currentCustomer.currency === 'INR' ? 'mer_indigo_airlines' : 'mer_coffee_beans');
+    } else if (preset === 'ATO') {
+      // 8.5x baseline spend + new untrusted hardware + foreign proxy IP
+      const elevatedAmount = Number((maxSpend * 8.5).toFixed(2));
+      setAmount(elevatedAmount);
+      setSensitivityAmount(elevatedAmount);
+      setIsVelocityBurst(false);
+      setIsNewDevice(true);
+      setIsLocationHop(true);
+      setIsBlacklistedMerchant(false);
+      setIsCollusionDevice(false);
+      setSelectedMerchantId('mer_luxury_watches');
+    } else if (preset === 'VELOCITY') {
+      // Rapid automated burst
+      setAmount(baselineMid);
+      setSensitivityAmount(baselineMid);
+      setIsVelocityBurst(true);
+      setIsNewDevice(false);
+      setIsLocationHop(false);
+      setIsBlacklistedMerchant(false);
+      setIsCollusionDevice(false);
+      setSelectedMerchantId('mer_electronics_store');
+    } else if (preset === 'WATCHLIST') {
+      // Sanctioned vendor
+      setAmount(Number((maxSpend * 1.5).toFixed(2)));
+      setSensitivityAmount(Number((maxSpend * 1.5).toFixed(2)));
+      setIsVelocityBurst(false);
+      setIsNewDevice(false);
+      setIsLocationHop(false);
+      setIsBlacklistedMerchant(true);
+      setIsCollusionDevice(false);
       setSelectedMerchantId('mer_black_1');
-    } else {
+    } else if (preset === 'COLLUSION') {
+      // Shared hardware linked to banned fraud ring
+      setAmount(baselineMid);
+      setSensitivityAmount(baselineMid);
+      setIsVelocityBurst(false);
+      setIsNewDevice(false);
+      setIsLocationHop(false);
+      setIsBlacklistedMerchant(false);
+      setIsCollusionDevice(true);
       setSelectedMerchantId('mer_grocery_fresh');
     }
   };
@@ -109,24 +197,36 @@ export function TransactionSimulator() {
     setIdempotencyKey(`idemp_${Math.random().toString(36).substring(2, 8)}`);
   };
 
-  // Run Simulation
+  // Run Simulation Pipeline
   const handleRunSimulation = useCallback(async () => {
     setLoading(true);
+    setInspectorStep(0);
 
-    const isUsd = currentCustomer.currency === 'USD';
-    const currency = currentCustomer.currency || (isUsd ? 'USD' : 'INR');
+    const currency = currentCustomer.currency || 'USD';
+    let deviceFp = currentCustomer.primaryDeviceFingerprint || `${currentCustomer.id}_trusted_device`;
+    if (isCollusionDevice) {
+      deviceFp = 'fp_shared_syndicate_ipad';
+    } else if (isNewDevice) {
+      deviceFp = 'fp_untrusted_linux_vm_99';
+    }
 
-    const deviceFp = isNewDevice
-      ? 'fp_new_untrusted_device_999'
-      : (currentCustomer.primaryDeviceFingerprint || `${currentCustomer.id}_trusted_device`);
-
-    const ip = isLocationHop
-      ? '203.0.113.50'
-      : (currentCustomer.usualIp || '103.21.244.10');
-
+    const ip = isLocationHop ? '185.220.101.5' : (currentCustomer.usualIp || '198.51.100.15');
     const merchant = isBlacklistedMerchant ? 'mer_black_1' : selectedMerchantId;
 
     try {
+      if (inspectorMode) {
+        // Step-by-Step educational slow-motion animation
+        setInspectorStep(1); // Lock & Idempotency
+        await new Promise((r) => setTimeout(r, 220));
+        setInspectorStep(2); // Velocity Check
+        await new Promise((r) => setTimeout(r, 220));
+        setInspectorStep(3); // Device & IP Trust
+        await new Promise((r) => setTimeout(r, 220));
+        setInspectorStep(4); // 2-Hop BFS Graph Traversal
+        await new Promise((r) => setTimeout(r, 220));
+        setInspectorStep(5); // Score Aggregation
+      }
+
       if (isVelocityBurst) {
         setBursting(true);
         burstCounter += 1;
@@ -134,11 +234,13 @@ export function TransactionSimulator() {
         const burstEmail = `burst_${burstCounter}_${currentCustomer.email}`;
 
         let latest: DecisionResponse | null = null;
-        for (let i = 1; i <= 6; i++) {
+        const totalCalls = 6;
+        for (let i = 1; i <= totalCalls; i++) {
+          setBurstProgress({ current: i, total: totalCalls, fired: i >= 6 });
           const payload: TransactionRequest = {
             userId: burstUser,
             email: burstEmail,
-            amount: Number((amount / 10 + i * 2).toFixed(2)),
+            amount: Number((amount / 10 + i * 2.5).toFixed(2)),
             currency,
             merchantId: merchant,
             ipAddress: ip,
@@ -147,7 +249,10 @@ export function TransactionSimulator() {
           latest = await api.transactions.evaluate(payload);
           await new Promise((r) => setTimeout(r, 120));
         }
-        if (latest) setLastResult(latest);
+        if (latest) {
+          setLastResult(latest);
+          setSensitivityAmount(amount);
+        }
       } else {
         const payload: TransactionRequest = {
           userId: currentCustomer.id,
@@ -164,12 +269,16 @@ export function TransactionSimulator() {
           enableIdempotency ? idempotencyKey : undefined
         );
         setLastResult(res);
+        setSensitivityAmount(amount);
       }
     } catch (err: unknown) {
       console.error('Simulation error:', err);
     } finally {
       setLoading(false);
       setBursting(false);
+      if (inspectorMode) {
+        setTimeout(() => setInspectorStep(0), 1200);
+      }
     }
   }, [
     currentCustomer,
@@ -178,12 +287,14 @@ export function TransactionSimulator() {
     isNewDevice,
     isLocationHop,
     isBlacklistedMerchant,
+    isCollusionDevice,
     isVelocityBurst,
+    inspectorMode,
     enableIdempotency,
     idempotencyKey,
   ]);
 
-  // Global Shortcut: Ctrl+Enter or Meta+Enter to simulate
+  // Global Keyboard Shortcut: Ctrl+Enter or Cmd+Enter
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -195,54 +306,10 @@ export function TransactionSimulator() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleRunSimulation]);
 
-  // Dynamic Dimensional Sub-scores computed from fired rules
-  const behaviorScore = useMemo(() => {
-    if (!lastResult) return 0;
-    let score = 0;
-    lastResult.firedRules.forEach((r) => {
-      const lower = r.toLowerCase();
-      if (lower.includes('amount') || lower.includes('spend') || lower.includes('value')) score += 50;
-      if (lower.includes('tier') || lower.includes('user')) score += 30;
-    });
-    return Math.min(100, score);
-  }, [lastResult]);
-
-  const velocityScore = useMemo(() => {
-    if (!lastResult) return 0;
-    let score = 0;
-    lastResult.firedRules.forEach((r) => {
-      const lower = r.toLowerCase();
-      if (lower.includes('velocity') || lower.includes('burst') || lower.includes('redis') || lower.includes('rate')) score += 40;
-    });
-    return Math.min(100, score);
-  }, [lastResult]);
-
-  const entityScore = useMemo(() => {
-    if (!lastResult) return 0;
-    let score = 0;
-    lastResult.firedRules.forEach((r) => {
-      const lower = r.toLowerCase();
-      if (lower.includes('watchlist') || lower.includes('merchant') || lower.includes('blacklisted')) score += 80;
-      if (lower.includes('syndicate') || lower.includes('ring') || lower.includes('graph')) score += 75;
-    });
-    return Math.min(100, score);
-  }, [lastResult]);
-
-  const contextScore = useMemo(() => {
-    if (!lastResult) return 0;
-    let score = 0;
-    lastResult.firedRules.forEach((r) => {
-      const lower = r.toLowerCase();
-      if (lower.includes('device') || lower.includes('hardware')) score += 25;
-      if (lower.includes('location') || lower.includes('ip') || lower.includes('geo')) score += 60;
-    });
-    return Math.min(100, score);
-  }, [lastResult]);
-
+  // Animated score rollup effect
   const [displayedScore, setDisplayedScore] = useState(0);
   const [copiedDocket, setCopiedDocket] = useState(false);
 
-  // Smooth animated score rollup effect
   useEffect(() => {
     if (!lastResult) return;
     const target = lastResult.finalScore;
@@ -265,80 +332,120 @@ export function TransactionSimulator() {
     requestAnimationFrame(animate);
   }, [lastResult]);
 
-  // Scenario Presets Trigger
-  const handleApplyPreset = (presetType: 'CLEAN' | 'ATO' | 'VELOCITY' | 'WATCHLIST') => {
-    if (presetType === 'CLEAN') {
-      setSelectedCustomerId('usr_sarah');
-      setAmount(1200);
-      setSelectedMerchantId('mer_grocery_fresh');
-      setIsUnusualAmount(false);
-      setIsNewDevice(false);
-      setIsLocationHop(false);
-      setIsBlacklistedMerchant(false);
-      setIsVelocityBurst(false);
-    } else if (presetType === 'ATO') {
-      setSelectedCustomerId('usr_sarah');
-      setAmount(14500);
-      setSelectedMerchantId('mer_luxury_watches');
-      setIsUnusualAmount(true);
-      setIsNewDevice(true);
-      setIsLocationHop(true);
-      setIsBlacklistedMerchant(false);
-      setIsVelocityBurst(false);
-    } else if (presetType === 'VELOCITY') {
-      setSelectedCustomerId('usr_arjun');
-      setAmount(3500);
-      setSelectedMerchantId('mer_electronics_store');
-      setIsUnusualAmount(false);
-      setIsNewDevice(false);
-      setIsLocationHop(false);
-      setIsBlacklistedMerchant(false);
-      setIsVelocityBurst(true);
-    } else if (presetType === 'WATCHLIST') {
-      setSelectedCustomerId('usr_david');
-      setAmount(8900);
-      setSelectedMerchantId('mer_black_1');
-      setIsUnusualAmount(true);
-      setIsNewDevice(true);
-      setIsLocationHop(true);
-      setIsBlacklistedMerchant(true);
-      setIsVelocityBurst(false);
-    }
-  };
+  // Check which of the 7 rules triggered
+  const ruleEvaluationMatrix = useMemo(() => {
+    if (!lastResult) return [];
 
+    const fired = lastResult.firedRules || [];
+    const hasRule = (id: string) => fired.some((r) => r.toUpperCase().includes(id));
+    const findReason = (id: string) => fired.find((r) => r.toUpperCase().includes(id)) || '';
+
+    const maxSpend = currentCustomer.typicalSpendMax || 50;
+    const spendMultiplier = (amount / maxSpend).toFixed(1);
+
+    return [
+      {
+        id: 'RULE_01',
+        name: 'High Velocity (5m)',
+        defaultWeight: 40,
+        triggered: hasRule('RULE_01'),
+        reason: hasRule('RULE_01')
+          ? findReason('RULE_01')
+          : 'Sliding window count clean (within 5 txns / 300s threshold)',
+        metric: isVelocityBurst ? '6 txns / 300s (BREACH)' : '1 txn / 300s (OK)',
+      },
+      {
+        id: 'RULE_02',
+        name: 'New Device Fingerprint',
+        defaultWeight: 25,
+        triggered: hasRule('RULE_02'),
+        reason: hasRule('RULE_02')
+          ? findReason('RULE_02')
+          : `Recognized trusted hardware fingerprint (${currentCustomer.primaryDevice || 'Registered Device'})`,
+        metric: isNewDevice ? 'Unrecognized SHA-256' : 'Trusted Registry Verified',
+      },
+      {
+        id: 'RULE_03',
+        name: 'High-Value Spend Deviation',
+        defaultWeight: 50,
+        triggered: hasRule('RULE_03'),
+        reason: hasRule('RULE_03')
+          ? findReason('RULE_03')
+          : `Spend ${currencySymbol}${amount} conforms to customer typical baseline (${currencySymbol}${currentCustomer.typicalSpendMin}–${currencySymbol}${maxSpend})`,
+        metric: hasRule('RULE_03') ? `${spendMultiplier}× typical limit` : 'Within limits',
+      },
+      {
+        id: 'RULE_04',
+        name: 'Rapid IP Change (Geo Hop)',
+        defaultWeight: 60,
+        triggered: hasRule('RULE_04'),
+        reason: hasRule('RULE_04')
+          ? findReason('RULE_04')
+          : `Originating IP conforms to historical home subnet (${currentCustomer.usualLocation?.split(',')[0] || 'Local'})`,
+        metric: isLocationHop ? 'Foreign Proxy (185.220.101.5)' : 'Home Subnet Verified',
+      },
+      {
+        id: 'RULE_05',
+        name: 'Blacklisted Merchant Watchlist',
+        defaultWeight: 80,
+        triggered: hasRule('RULE_05'),
+        reason: hasRule('RULE_05')
+          ? findReason('RULE_05')
+          : 'Merchant verified in good standing on global directory',
+        metric: isBlacklistedMerchant ? 'DarkMixer Escrow (FLAGGED)' : 'Clean Merchant',
+      },
+      {
+        id: 'RULE_06',
+        name: 'Customer Risk Tiering',
+        defaultWeight: 30,
+        triggered: hasRule('RULE_06'),
+        reason: hasRule('RULE_06')
+          ? findReason('RULE_06')
+          : `Customer profile is in ${currentCustomer.riskSegment} risk tier (no baseline penalty applied)`,
+        metric: `${currentCustomer.riskSegment} Tier`,
+      },
+      {
+        id: 'RULE_07',
+        name: 'Syndicate Fraud Ring (2-Hop BFS)',
+        defaultWeight: 75,
+        triggered: hasRule('RULE_07'),
+        reason: hasRule('RULE_07')
+          ? findReason('RULE_07')
+          : '2-hop BFS graph traversal found zero links to banned fraud rings',
+        metric: isCollusionDevice ? 'Shared Device -> Banned Kingpin' : 'Isolated Clean Node',
+      },
+    ];
+  }, [lastResult, currentCustomer, amount, currencySymbol, isVelocityBurst, isNewDevice, isLocationHop, isBlacklistedMerchant, isCollusionDevice]);
+
+  // Export formatted compliance audit report
   const handleExportDocket = () => {
     if (!lastResult) return;
     const docket = {
-      docketType: 'SENTINELX_COMPLIANCE_AUDIT_DOCKET',
+      docketType: 'SENTINELX_FINANCIAL_CRIME_AUDIT_DOCKET',
       generatedAt: new Date().toISOString(),
       transactionId: lastResult.transactionId,
-      account: {
+      customerProfile: {
         userId: currentCustomer.id,
         name: currentCustomer.name,
+        occupation: currentCustomer.occupation,
         riskTier: currentCustomer.riskSegment,
-        usualLocation: currentCustomer.usualLocation,
+        historicalTransactionsInDatabase: currentCustomer.historicalTxnCount || 200,
+        establishedTypicalSpend: `${currencySymbol}${currentCustomer.typicalSpendMin} – ${currencySymbol}${currentCustomer.typicalSpendMax}`,
       },
-      evaluation: {
-        decision: lastResult.decision,
+      decisionSummary: {
+        verdict: lastResult.decision,
         finalScore: lastResult.finalScore,
-        latencyMs: lastResult.evaluationTimeMs,
-        firedSignals: lastResult.firedRules,
+        engineLatencyMs: lastResult.evaluationTimeMs,
+        slaTargetMet: lastResult.evaluationTimeMs < 50,
       },
-      telemetry: {
-        idempotencyKey: enableIdempotency ? idempotencyKey : 'DISABLED',
-        amount,
-        currency: currentCustomer.currency,
-        merchantId: selectedMerchantId,
-        anomalySpike: isUnusualAmount,
-        newDeviceFingerprint: isNewDevice,
-        geolocationHop: isLocationHop,
-        velocityBurst: isVelocityBurst,
-      },
-      geminiCopilot: {
-        shadowVerdict: lastResult.geminiVerdict || 'N/A',
-        category: lastResult.geminiCategory || 'N/A',
-        reasoning: lastResult.geminiReasoning || 'N/A',
-      },
+      ruleMatrix: ruleEvaluationMatrix.map((r) => ({
+        ruleId: r.id,
+        name: r.name,
+        triggered: r.triggered,
+        points: r.triggered ? r.defaultWeight : 0,
+        details: r.reason,
+      })),
+      aiCopilotReasoning: lastResult.geminiReasoning || 'Automated score normalized from real-time dynamic rule matrix.',
     };
 
     navigator.clipboard.writeText(JSON.stringify(docket, null, 2));
@@ -346,727 +453,667 @@ export function TransactionSimulator() {
     setTimeout(() => setCopiedDocket(false), 2500);
   };
 
-  const currencySymbol = currentCustomer.currency === 'USD' ? '$' : '₹';
-  const customerInitials = currentCustomer.name.split(' ').map(n => n[0]).join('').substring(0, 2);
+  const customerInitials = currentCustomer.name.split(' ').map((n) => n[0]).join('').substring(0, 2);
 
   return (
     <div className="bg-[#151922] border border-slate-800/80 rounded-xl p-5 lg:p-6 space-y-6 text-white font-sans shadow-xl">
-      {/* Top Banner & Dimension Navigation */}
+      {/* TOP HEADER: TITLE & ENGINE SWITCHES */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
+          <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 shrink-0">
             <Zap className="w-5 h-5 text-blue-400" />
           </div>
           <div>
             <div className="flex items-center gap-2.5">
               <h2 className="text-base font-mono font-bold text-white tracking-wide uppercase">
-                RISK EVALUATION WORKBENCH
+                FRAUD DECISIONING WORKBENCH
               </h2>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 font-bold flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                LIVE MODE
+                SPRING BOOT + REDIS LUA
               </span>
             </div>
             <p className="text-xs text-neutral-400 font-mono mt-0.5">
-              Multi-dimensional evaluation across Behavior • Velocity • Entity Graph
+              5 Verified Personas • 1,000 Historical Database Context Records • &lt;15ms Latency SLA
             </p>
           </div>
         </div>
 
-        {/* Idempotency & Latency Telemetry */}
-        <div className="flex items-center gap-2 self-start sm:self-auto font-mono text-xs">
-          <div className="flex items-center gap-2 bg-[#1c222e] border border-slate-700/80 rounded-lg px-3 py-1.5">
-            <button
-              type="button"
-              onClick={() => setEnableIdempotency(!enableIdempotency)}
-              className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] transition-colors ${
-                enableIdempotency
-                  ? 'bg-blue-600 text-white font-bold'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              <KeyRound className="w-3 h-3" />
-              <span>IDEMPOTENCY: {enableIdempotency ? 'ON' : 'OFF'}</span>
-            </button>
-
-            {enableIdempotency && (
-              <div className="flex items-center gap-1.5 text-[11px] pl-2 text-white border-l border-slate-700">
-                <span className="text-neutral-300">{idempotencyKey}</span>
-                <button
-                  type="button"
-                  onClick={regenerateIdempotencyKey}
-                  className="p-0.5 text-neutral-400 hover:text-white rounded transition-colors"
-                  title="Generate new token"
-                >
-                  <RotateCw className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-
-            {lastResult && (
-              <div className="flex items-center gap-1 text-[11px] pl-2 border-l border-slate-700 text-white">
-                <span className="text-neutral-400">LATENCY:</span>
-                <span className="text-emerald-400 font-bold">{lastResult.evaluationTimeMs}ms</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ONE-CLICK SIMULATION SCENARIOS (Top Bar) */}
-      <div className="space-y-2 font-mono bg-[#1c222e]/60 p-3.5 rounded-xl border border-slate-800/80">
-        <div className="flex items-center justify-between text-[11px] pb-1 border-b border-slate-800">
-          <span className="font-bold uppercase tracking-wider flex items-center gap-1.5 text-neutral-300">
-            <Zap className="w-3.5 h-3.5 text-amber-400" />
-            <span>SIMULATION SCENARIOS (1-CLICK LOAD):</span>
-          </span>
-          <span className="text-[10px] text-cyan-400 font-bold flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-cyan-400" />
-            <span>INSTANT VECTOR LOAD</span>
-          </span>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1 text-xs">
-          {/* 01 Normal Purchase (Green) */}
+        {/* TOP TOGGLES: INSPECTOR MODE & IDEMPOTENCY */}
+        <div className="flex items-center gap-2 font-mono text-xs">
           <button
             type="button"
-            onClick={() => handleApplyPreset('CLEAN')}
-            className="p-3 rounded-lg bg-[#151922] hover:bg-[#1f2635] border border-emerald-500/30 hover:border-emerald-400 text-left transition-all flex items-center justify-between group shadow-sm"
+            onClick={() => setInspectorMode(!inspectorMode)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-bold transition-all ${
+              inspectorMode
+                ? 'bg-purple-900/60 border-purple-500 text-purple-200'
+                : 'bg-[#1c222e] border-slate-700 text-neutral-400 hover:text-white'
+            }`}
+            title="Step through each stage in slow motion for educational explainability"
           >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-emerald-950/80 border border-emerald-500/50 flex items-center justify-center text-emerald-400 shrink-0 shadow-sm shadow-emerald-900/30">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              </div>
-              <div>
-                <div className="text-xs font-bold text-white uppercase group-hover:text-emerald-300 transition-colors">01 Normal Purchase</div>
-                <div className="text-[10px] font-sans text-neutral-400">Clean baseline transaction</div>
-              </div>
-            </div>
-            <span className="text-xs text-neutral-500 group-hover:text-emerald-400 transition-colors font-mono">→</span>
+            <Clock className="w-3.5 h-3.5" />
+            <span>INSPECTOR: {inspectorMode ? 'SLOW-MO ON' : 'FAST'}</span>
           </button>
 
-          {/* 02 Account Takeover (Amber) */}
           <button
             type="button"
-            onClick={() => handleApplyPreset('ATO')}
-            className="p-3 rounded-lg bg-[#151922] hover:bg-[#1f2635] border border-amber-500/30 hover:border-amber-400 text-left transition-all flex items-center justify-between group shadow-sm"
+            onClick={() => setEnableIdempotency(!enableIdempotency)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-bold transition-all ${
+              enableIdempotency
+                ? 'bg-blue-600 border-blue-500 text-white'
+                : 'bg-[#1c222e] border-slate-700 text-neutral-400 hover:text-white'
+            }`}
           >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-amber-950/80 border border-amber-500/50 flex items-center justify-center text-amber-400 shrink-0 shadow-sm shadow-amber-900/30">
-                <KeyRound className="w-4 h-4 text-amber-400" />
-              </div>
-              <div>
-                <div className="text-xs font-bold text-white uppercase group-hover:text-amber-300 transition-colors">02 Account Takeover</div>
-                <div className="text-[10px] font-sans text-neutral-400">New device + location + velocity</div>
-              </div>
-            </div>
-            <span className="text-xs text-neutral-500 group-hover:text-amber-400 transition-colors font-mono">→</span>
-          </button>
-
-          {/* 03 Velocity Attack (Purple) */}
-          <button
-            type="button"
-            onClick={() => handleApplyPreset('VELOCITY')}
-            className="p-3 rounded-lg bg-[#151922] hover:bg-[#1f2635] border border-purple-500/30 hover:border-purple-400 text-left transition-all flex items-center justify-between group shadow-sm"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-purple-950/80 border border-purple-500/50 flex items-center justify-center text-purple-400 shrink-0 shadow-sm shadow-purple-900/30">
-                <RotateCw className="w-4 h-4 text-purple-400" />
-              </div>
-              <div>
-                <div className="text-xs font-bold text-white uppercase group-hover:text-purple-300 transition-colors">03 Velocity Attack</div>
-                <div className="text-[10px] font-sans text-neutral-400">Multiple rapid transactions</div>
-              </div>
-            </div>
-            <span className="text-xs text-neutral-500 group-hover:text-purple-400 transition-colors font-mono">→</span>
-          </button>
-
-          {/* 04 Watchlist Merchant (Red/Rose) */}
-          <button
-            type="button"
-            onClick={() => handleApplyPreset('WATCHLIST')}
-            className="p-3 rounded-lg bg-[#151922] hover:bg-[#1f2635] border border-rose-500/30 hover:border-rose-400 text-left transition-all flex items-center justify-between group shadow-sm"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-rose-950/80 border border-rose-500/50 flex items-center justify-center text-rose-400 shrink-0 shadow-sm shadow-rose-900/30">
-                <ShieldAlert className="w-4 h-4 text-rose-400" />
-              </div>
-              <div>
-                <div className="text-xs font-bold text-white uppercase group-hover:text-rose-300 transition-colors">04 Watchlist Merchant</div>
-                <div className="text-[10px] font-sans text-neutral-400">High risk merchant interaction</div>
-              </div>
-            </div>
-            <span className="text-xs text-neutral-500 group-hover:text-rose-400 transition-colors font-mono">→</span>
+            <KeyRound className="w-3.5 h-3.5" />
+            <span>IDEMPOTENCY: {enableIdempotency ? 'ON' : 'OFF'}</span>
           </button>
         </div>
       </div>
 
-      {/* MIDDLE TIER: 3 COLUMN BENCHMARK GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* CARD 1: CUSTOMER PROFILE (4 Cols) */}
-        <div className="lg:col-span-4 bg-[#1c222e] border border-slate-800/80 rounded-xl p-4 space-y-4 flex flex-col justify-between shadow-sm">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <div className="flex items-center gap-2 text-xs font-bold font-mono text-white uppercase">
-                <UserCheck className="w-4 h-4 text-cyan-400" />
-                <span>CUSTOMER PROFILE</span>
-              </div>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase border ${
-                currentCustomer.riskSegment === 'LOW' ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-400' :
-                currentCustomer.riskSegment === 'MEDIUM' ? 'bg-amber-950/80 border-amber-500/50 text-amber-400' :
-                'bg-rose-950/80 border-rose-500/50 text-rose-400'
-              }`}>
-                ● {currentCustomer.riskSegment} RISK
-              </span>
-            </div>
-
-            {/* Avatar & Profile Hero */}
-            <div className="flex items-center gap-3.5 pt-1">
-              <div className={`w-12 h-12 rounded-full border-2 border-slate-700 flex items-center justify-center text-black font-black text-sm shadow-md ${
-                currentCustomer.riskSegment === 'LOW' ? 'bg-gradient-to-tr from-emerald-500 to-teal-300' :
-                currentCustomer.riskSegment === 'MEDIUM' ? 'bg-gradient-to-tr from-amber-500 to-yellow-300' :
-                'bg-gradient-to-tr from-rose-500 to-red-400'
-              }`}>
-                {customerInitials}
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-white">{currentCustomer.name}</h3>
-                <p className="text-xs text-neutral-400">{currentCustomer.occupation || currentCustomer.email}</p>
-                <p className="text-[10px] text-cyan-400 font-mono mt-0.5">ID: {currentCustomer.id}</p>
-              </div>
-            </div>
-
-            {/* Profile Metrics */}
-            <div className="bg-[#151922] rounded-lg p-3 space-y-2 text-xs font-mono border border-slate-800/80">
-              <div className="flex items-center justify-between">
-                <span className="text-neutral-400">Typical Spend:</span>
-                <span className="text-white font-bold">{currencySymbol}{currentCustomer.typicalSpendMin?.toLocaleString()} – {currencySymbol}{currentCustomer.typicalSpendMax?.toLocaleString()}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-neutral-400">Primary Region:</span>
-                <span className="text-white font-bold">{currentCustomer.usualLocation?.split(',')[0]}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-neutral-400">Customer Since:</span>
-                <span className="text-neutral-300">Aug 2022</span>
-              </div>
-            </div>
+      {/* STEP 1: CHOOSE PERSONA (5 DISTINCT USER PROFILES) */}
+      <div className="space-y-3 font-mono">
+        <div className="flex items-center justify-between text-xs pb-1">
+          <div className="flex items-center gap-2 text-white font-bold uppercase tracking-wider">
+            <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[11px]">1</span>
+            <span>SELECT CUSTOMER PERSONA (ESTABLISHED HISTORICAL CONTEXT):</span>
           </div>
+          <button
+            type="button"
+            onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}
+            className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-bold"
+          >
+            <span>{showHistoryDrawer ? 'Hide Profile Baseline' : 'Inspect Profile & Stored Txns'}</span>
+            {showHistoryDrawer ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+        </div>
 
-          {/* Customer Profile Picker Row (All Available Profiles) */}
-          <div className="pt-2 border-t border-slate-800">
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[10px] font-mono text-neutral-400 uppercase">
-                SWITCH ACCOUNT ({customers.length} PROFILES):
-              </label>
-            </div>
-            <div className="grid grid-cols-3 gap-1.5 max-h-24 overflow-y-auto pr-0.5">
-              {customers.map((c) => {
-                const isSelected = c.id === selectedCustomerId;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => handleSelectCustomer(c.id)}
-                    className={`p-1.5 rounded-lg text-left text-[11px] font-mono border transition-all flex items-center justify-between gap-1 ${
-                      isSelected
-                        ? 'bg-blue-600 text-white font-bold border-blue-500 shadow-sm'
-                        : 'bg-[#151922] text-neutral-300 border-slate-800 hover:border-slate-600 hover:text-white'
-                    }`}
-                  >
-                    <span className="truncate">{c.name.split(' ')[0]}</span>
-                    <span className={`text-[8px] px-1 py-0.2 rounded font-bold uppercase shrink-0 ${
-                      isSelected ? 'bg-black/30 text-white' :
-                      c.riskSegment === 'LOW' ? 'text-emerald-400 bg-emerald-950/60' :
-                      c.riskSegment === 'MEDIUM' ? 'text-amber-400 bg-amber-950/60' :
-                      'text-rose-400 bg-rose-950/60'
+        {/* 5 Persona Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          {customers.slice(0, 5).map((c) => {
+            const isSelected = c.id === selectedCustomerId;
+            const cInitials = c.name.split(' ').map((n) => n[0]).join('').substring(0, 2);
+            const symbol = c.currency === 'USD' ? '$' : c.currency === 'INR' ? '₹' : c.currency === 'GBP' ? '£' : '$';
+
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => handleSelectCustomer(c.id)}
+                className={`p-3.5 rounded-xl border text-left transition-all relative flex flex-col justify-between ${
+                  isSelected
+                    ? 'bg-blue-950/40 border-blue-500 shadow-md shadow-blue-950/60 ring-1 ring-blue-500'
+                    : 'bg-[#1c222e] border-slate-800 hover:border-slate-600 text-neutral-300'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
+                      c.riskSegment === 'LOW' ? 'bg-emerald-950 text-emerald-400 border border-emerald-500/50' :
+                      c.riskSegment === 'MEDIUM' ? 'bg-amber-950 text-amber-400 border border-amber-500/50' :
+                      'bg-rose-950 text-rose-400 border border-rose-500/50'
                     }`}>
-                      {c.riskSegment === 'LOW' ? 'LOW' : c.riskSegment === 'MEDIUM' ? 'MED' : 'HIGH'}
+                      {cInitials}
+                    </div>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                      c.riskSegment === 'LOW' ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-500/40' :
+                      c.riskSegment === 'MEDIUM' ? 'bg-amber-950/80 text-amber-400 border border-amber-500/40' :
+                      'bg-rose-950/80 text-rose-400 border border-rose-500/40'
+                    }`}>
+                      {c.riskSegment} RISK
                     </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+                  </div>
+
+                  <div className="text-xs font-bold text-white truncate">{c.name}</div>
+                  <div className="text-[10px] text-neutral-400 font-sans truncate">{c.occupation}</div>
+                  <div className="text-[10px] text-neutral-500 font-sans mt-0.5 truncate">{c.usualLocation?.split(',')[0]}</div>
+                </div>
+
+                <div className="mt-3 pt-2.5 border-t border-slate-800/80 space-y-1 text-[10px]">
+                  <div className="flex justify-between text-neutral-400">
+                    <span>Typical:</span>
+                    <span className="text-white font-bold">{symbol}{c.typicalSpendMin}–{symbol}{c.typicalSpendMax}</span>
+                  </div>
+                  <div className="flex justify-between text-cyan-400 font-bold">
+                    <span>Database:</span>
+                    <span>{c.historicalTxnCount || 200} Txns</span>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
 
-        {/* CARD 2: TRANSACTION CONTEXT (4 Cols) */}
-        <div className="lg:col-span-4 bg-[#1c222e] border border-slate-800/80 rounded-xl p-4 space-y-4 flex flex-col justify-between shadow-sm">
-          <div className="space-y-3">
+        {/* EXPANDABLE PROFILE & RECENT HISTORICAL ACTIVITY DRAWER */}
+        {showHistoryDrawer && (
+          <div className="bg-[#1c222e] border border-cyan-900/60 rounded-xl p-4 space-y-3 animate-in fade-in duration-200">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <div className="flex items-center gap-2 text-xs font-bold font-mono text-white uppercase">
-                <SlidersHorizontal className="w-4 h-4 text-cyan-400" />
-                <span>TRANSACTION CONTEXT</span>
+              <div className="flex items-center gap-2 text-xs font-bold text-cyan-300">
+                <UserCheck className="w-4 h-4 text-cyan-400" />
+                <span>CUSTOMER PROFILE BASELINE: {currentCustomer.name} ({currentCustomer.id})</span>
               </div>
-              <span className="text-[10px] text-neutral-400 font-mono">PAYLOAD v1</span>
+              <span className="text-[10px] text-neutral-400">Verified Identity Registry</span>
             </div>
 
-            {/* Large Amount Display */}
-            <div className="bg-[#151922] rounded-lg p-3 border border-slate-800/80 flex items-baseline justify-between">
-              <div>
-                <span className="text-[10px] font-mono text-neutral-400 uppercase">AMOUNT:</span>
-                <div className="text-2xl font-black font-mono text-white">
-                  {currencySymbol}{amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              <div className="bg-[#151922] p-2.5 rounded-lg border border-slate-800 space-y-1">
+                <span className="text-[10px] text-neutral-400 uppercase">Trusted Device &amp; OS:</span>
+                <div className="font-bold text-white flex items-center gap-1.5">
+                  <Smartphone className="w-3.5 h-3.5 text-blue-400" />
+                  <span>{currentCustomer.primaryDevice || 'iPhone'}</span>
+                </div>
+                <div className="text-[9px] text-neutral-500 font-mono truncate">
+                  SHA-256: {currentCustomer.primaryDeviceFingerprint}
                 </div>
               </div>
-              <div className="text-[10px] font-mono text-right text-neutral-400">
-                <span>EXP: {currencySymbol}{currentCustomer.typicalSpendMin}–{currencySymbol}{currentCustomer.typicalSpendMax}</span>
+
+              <div className="bg-[#151922] p-2.5 rounded-lg border border-slate-800 space-y-1">
+                <span className="text-[10px] text-neutral-400 uppercase">Home Subnet &amp; City:</span>
+                <div className="font-bold text-white flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{currentCustomer.usualLocation}</span>
+                </div>
+                <div className="text-[9px] text-neutral-500 font-mono">
+                  Subnet: {currentCustomer.usualIp || '198.51.100.15'}
+                </div>
+              </div>
+
+              <div className="bg-[#151922] p-2.5 rounded-lg border border-slate-800 space-y-1">
+                <span className="text-[10px] text-neutral-400 uppercase">Established Normalcy:</span>
+                <div className="font-bold text-white">
+                  {currencySymbol}{currentCustomer.typicalSpendMin} – {currencySymbol}{currentCustomer.typicalSpendMax} {currentCustomer.currency}
+                </div>
+                <div className="text-[9px] text-emerald-400 font-bold">
+                  {currentCustomer.historicalTxnCount || 200} Pre-Stored Baseline Txns in PostgreSQL
+                </div>
               </div>
             </div>
 
-            {/* Merchant, Channel & Method Details */}
-            <div className="bg-[#151922] rounded-lg p-3 space-y-2 text-xs font-mono border border-slate-800/80">
-              <div className="flex items-center justify-between">
-                <span className="text-neutral-400">Merchant:</span>
-                <span className={`font-bold truncate max-w-[170px] ${isBlacklistedMerchant ? 'text-rose-400' : 'text-emerald-400'}`}>
-                  {MERCHANTS.find(m => m.id === selectedMerchantId)?.name || selectedMerchantId}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-neutral-400">Channel:</span>
-                <span className="text-white font-bold">API / REST Gateway</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-neutral-400">Protocol:</span>
-                <span className="text-cyan-400 font-bold">{enableIdempotency ? 'Idempotent (Keyed)' : 'Standard HTTPS'}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-neutral-400">Evaluated At:</span>
-                <span className="text-neutral-300">{lastResult ? 'Evaluated' : 'Ready'}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-slate-800 text-[10px] font-mono text-neutral-400 flex items-center justify-between">
-            <span>ENGINE: SPRING BOOT 3.4</span>
-            <span className="text-emerald-400 font-bold">REDIS 7 LUA ENGINE</span>
-          </div>
-        </div>
-
-        {/* CARD 3: RISK SCORE & GAUGE (4 Cols) */}
-        <div className="lg:col-span-4 bg-[#1c222e] border border-slate-800/80 rounded-xl p-4 space-y-3 flex flex-col justify-between shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-            <div className="flex items-center gap-2 text-xs font-bold font-mono text-white uppercase">
-              <Activity className="w-4 h-4 text-cyan-400" />
-              <span>RISK SCORE</span>
-            </div>
-            <span className="text-[10px] text-neutral-400 font-mono">0 - 100 SCALE</span>
-          </div>
-
-          {/* Radial SVG Gauge + Score */}
-          <div className="flex items-center justify-center pt-1">
-            <div className="relative w-44 h-24 flex items-end justify-center">
-              <svg className="w-44 h-24 overflow-visible" viewBox="0 0 160 90">
-                {/* Arc Track */}
-                <path
-                  d="M 15 80 A 65 65 0 0 1 145 80"
-                  fill="none"
-                  stroke="#11141a"
-                  strokeWidth="12"
-                  strokeLinecap="round"
-                />
-                {/* Colored Segments */}
-                <path
-                  d="M 15 80 A 65 65 0 0 1 60 28"
-                  fill="none"
-                  stroke="#10b981"
-                  strokeWidth="10"
-                  strokeLinecap="round"
-                  opacity="0.8"
-                />
-                <path
-                  d="M 60 28 A 65 65 0 0 1 100 28"
-                  fill="none"
-                  stroke="#f59e0b"
-                  strokeWidth="10"
-                  strokeLinecap="round"
-                  opacity="0.8"
-                />
-                <path
-                  d="M 100 28 A 65 65 0 0 1 145 80"
-                  fill="none"
-                  stroke="#f43f5e"
-                  strokeWidth="10"
-                  strokeLinecap="round"
-                  opacity="0.8"
-                />
-              </svg>
-              <div className="absolute bottom-0 flex flex-col items-center">
-                <span className="text-3xl font-black font-mono text-white">
-                  {lastResult ? displayedScore : 0}
-                </span>
-                <span className="text-[10px] font-mono text-neutral-400 font-normal">/ 100</span>
+            {/* PREVIEW OF LAST 3 LEGITIMATE TRANSACTIONS IN DATABASE */}
+            <div className="pt-2 border-t border-slate-800">
+              <span className="text-[10px] text-neutral-400 uppercase block mb-1.5">
+                SAMPLE PRE-STORED TRANSACTIONS FROM DATABASE:
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {recentTransactions.length > 0 ? (
+                  recentTransactions.map((tx) => (
+                    <div key={tx.id} className="bg-[#151922] p-2 rounded-lg border border-slate-800 flex items-center justify-between text-[11px]">
+                      <div>
+                        <div className="font-bold text-white">{currencySymbol}{tx.amount} {tx.currency}</div>
+                        <div className="text-[9px] text-neutral-400 truncate max-w-[120px]">{tx.merchantId}</div>
+                      </div>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 font-bold border border-emerald-500/40">
+                        {tx.status}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-neutral-500 text-[11px] italic col-span-3">
+                    200+ historical baseline records loaded in database for {currentCustomer.name}.
+                  </div>
+                )}
               </div>
             </div>
           </div>
-
-          {/* 4 Dimension Score Progress Bars (Calculated from Real Decision Response) */}
-          <div className="space-y-1.5 text-[11px] font-mono pt-1">
-            <div className="space-y-0.5">
-              <div className="flex justify-between text-neutral-300">
-                <span className="text-amber-400 font-bold flex items-center gap-1">⚡ Behavior Score</span>
-                <span className="text-white font-bold">{behaviorScore}/100</span>
-              </div>
-              <div className="w-full bg-[#11141a] h-1.5 rounded-full overflow-hidden">
-                <div
-                  style={{ width: `${behaviorScore}%` }}
-                  className="h-full bg-amber-400 transition-all duration-300"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-0.5">
-              <div className="flex justify-between text-neutral-300">
-                <span className="text-purple-400 font-bold flex items-center gap-1">⏱ Velocity Score</span>
-                <span className="text-white font-bold">{velocityScore}/100</span>
-              </div>
-              <div className="w-full bg-[#11141a] h-1.5 rounded-full overflow-hidden">
-                <div
-                  style={{ width: `${velocityScore}%` }}
-                  className="h-full bg-purple-400 transition-all duration-300"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-0.5">
-              <div className="flex justify-between text-neutral-300">
-                <span className="text-cyan-400 font-bold flex items-center gap-1">🕸 Entity Score</span>
-                <span className="text-white font-bold">{entityScore}/100</span>
-              </div>
-              <div className="w-full bg-[#11141a] h-1.5 rounded-full overflow-hidden">
-                <div
-                  style={{ width: `${entityScore}%` }}
-                  className="h-full bg-cyan-400 transition-all duration-300"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-0.5">
-              <div className="flex justify-between text-neutral-300">
-                <span className="text-emerald-400 font-bold flex items-center gap-1">🏷 Context Score</span>
-                <span className="text-white font-bold">{contextScore}/100</span>
-              </div>
-              <div className="w-full bg-[#11141a] h-1.5 rounded-full overflow-hidden">
-                <div
-                  style={{ width: `${contextScore}%` }}
-                  className="h-full bg-emerald-400 transition-all duration-300"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Decision Box */}
-          <div className={`p-2.5 rounded-lg border flex items-center justify-between font-mono ${
-            !lastResult ? 'bg-[#151922] border-slate-800 text-neutral-400' :
-            lastResult.decision === 'ALLOW' ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-400' :
-            lastResult.decision === 'REVIEW' ? 'bg-amber-950/80 border-amber-500/60 text-amber-400' :
-            'bg-rose-950/80 border-rose-500/60 text-rose-400'
-          }`}>
-            <span className="text-xs font-bold uppercase">
-              {!lastResult ? 'STATUS: READY' : `🔒 DECISION: ${lastResult.decision}`}
-            </span>
-            <span className="text-[10px] font-bold">
-              {!lastResult ? 'STANDBY' : lastResult.decision === 'ALLOW' ? 'CLEARED' : lastResult.decision === 'REVIEW' ? 'MANUAL REVIEW' : 'HARD REJECT'}
-            </span>
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* BOTTOM TIER: 3 COLUMN INTERACTION & EXPLAINABILITY GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* CARD 4: ATTACK VECTOR BUILDER (4 Cols) */}
-        <div className="lg:col-span-4 bg-[#1c222e] border border-slate-800/80 rounded-xl p-4 space-y-3 flex flex-col justify-between shadow-sm">
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <div className="flex items-center gap-2 text-xs font-bold font-mono text-white uppercase">
-                <Zap className="w-4 h-4 text-amber-400" />
-                <span>ATTACK VECTOR BUILDER</span>
-              </div>
-              <span className="text-[10px] text-neutral-400 font-mono">THREAT INJECTION</span>
+      {/* STEP 2: CHOOSE SITUATION (SCENARIO OR VELOCITY OPTION) */}
+      <div className="space-y-3 font-mono bg-[#1c222e]/60 p-4 rounded-xl border border-slate-800/80">
+        <div className="flex items-center justify-between text-xs pb-1">
+          <div className="flex items-center gap-2 text-white font-bold uppercase tracking-wider">
+            <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[11px]">2</span>
+            <span>CHOOSE TRANSACTION SITUATION TO SIMULATE:</span>
+          </div>
+          <span className="text-[10px] text-amber-400 font-bold flex items-center gap-1">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>1-CLICK NARRATIVE STORIES</span>
+          </span>
+        </div>
+
+        {/* 5 Narrative Preset Story Buttons */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 text-xs">
+          {/* 1. Everyday Clean Purchase */}
+          <button
+            type="button"
+            onClick={() => handleApplyScenario('CLEAN')}
+            className={`p-3 rounded-lg border text-left transition-all flex flex-col justify-between ${
+              activeScenario === 'CLEAN'
+                ? 'bg-[#151922] border-emerald-500 ring-1 ring-emerald-500'
+                : 'bg-[#151922] border-slate-800 hover:border-emerald-500/50'
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="font-bold text-white">01 Normal Purchase</span>
             </div>
+            <p className="text-[10px] font-sans text-neutral-400">
+              Clean typical purchase on trusted device at local merchant.
+            </p>
+            <span className="text-[9px] mt-2 text-emerald-400 font-bold uppercase">Expected: ALLOW</span>
+          </button>
 
-            {/* 4 Interactive Attack Cards */}
-            <div className="space-y-2">
-              {/* Spend Spike */}
-              <div className={`p-2.5 rounded-lg border transition-all flex items-center justify-between ${
-                isUnusualAmount ? 'bg-[#151922] border-emerald-400 ring-1 ring-emerald-400/50' : 'bg-[#151922] border-slate-800'
-              }`}>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-full bg-emerald-950/80 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
-                    <Zap className="w-3.5 h-3.5" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold font-mono text-white">SPEND SPIKE</div>
-                    <div className="text-[10px] text-emerald-400 font-mono font-bold">+50 Risk</div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleToggleUnusualAmount(!isUnusualAmount)}
-                  className={`px-2.5 py-1 rounded text-[10px] font-mono font-bold border transition-colors ${
-                    isUnusualAmount ? 'bg-emerald-400 text-black border-emerald-400' : 'bg-slate-800/60 text-neutral-300 border-slate-700 hover:border-slate-500'
-                  }`}
-                >
-                  {isUnusualAmount ? '✓ INJECTED' : 'INJECT'}
-                </button>
-              </div>
-
-              {/* Geo Anomaly */}
-              <div className={`p-2.5 rounded-lg border transition-all flex items-center justify-between ${
-                isLocationHop ? 'bg-[#151922] border-amber-400 ring-1 ring-amber-400/50' : 'bg-[#151922] border-slate-800'
-              }`}>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-full bg-amber-950/80 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
-                    <Globe className="w-3.5 h-3.5" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold font-mono text-white">GEO ANOMALY</div>
-                    <div className="text-[10px] text-amber-400 font-mono font-bold">+60 Risk</div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsLocationHop(!isLocationHop)}
-                  className={`px-2.5 py-1 rounded text-[10px] font-mono font-bold border transition-colors ${
-                    isLocationHop ? 'bg-amber-400 text-black border-amber-400' : 'bg-slate-800/60 text-neutral-300 border-slate-700 hover:border-slate-500'
-                  }`}
-                >
-                  {isLocationHop ? '✓ INJECTED' : 'INJECT'}
-                </button>
-              </div>
-
-              {/* Velocity Burst */}
-              <div className={`p-2.5 rounded-lg border transition-all flex items-center justify-between ${
-                isVelocityBurst ? 'bg-[#151922] border-purple-400 ring-1 ring-purple-400/50' : 'bg-[#151922] border-slate-800'
-              }`}>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-full bg-purple-950/80 border border-purple-500/40 flex items-center justify-center text-purple-400 shrink-0">
-                    <RotateCw className="w-3.5 h-3.5" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold font-mono text-white">VELOCITY BURST</div>
-                    <div className="text-[10px] text-purple-400 font-mono font-bold">+40 Risk</div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsVelocityBurst(!isVelocityBurst)}
-                  className={`px-2.5 py-1 rounded text-[10px] font-mono font-bold border transition-colors ${
-                    isVelocityBurst ? 'bg-purple-400 text-black border-purple-400' : 'bg-slate-800/60 text-neutral-300 border-slate-700 hover:border-slate-500'
-                  }`}
-                >
-                  {isVelocityBurst ? '✓ INJECTED' : 'INJECT'}
-                </button>
-              </div>
-
-              {/* Watchlist Merchant */}
-              <div className={`p-2.5 rounded-lg border transition-all flex items-center justify-between ${
-                isBlacklistedMerchant ? 'bg-[#151922] border-rose-400 ring-1 ring-rose-400/50' : 'bg-[#151922] border-slate-800'
-              }`}>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-full bg-rose-950/80 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0">
-                    <ShieldAlert className="w-3.5 h-3.5" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold font-mono text-white">WATCHLIST MERCHANT</div>
-                    <div className="text-[10px] text-rose-400 font-mono font-bold">+80 Risk</div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleToggleMerchant(!isBlacklistedMerchant)}
-                  className={`px-2.5 py-1 rounded text-[10px] font-mono font-bold border transition-colors ${
-                    isBlacklistedMerchant ? 'bg-rose-400 text-black border-rose-400' : 'bg-slate-800/60 text-neutral-300 border-slate-700 hover:border-slate-500'
-                  }`}
-                >
-                  {isBlacklistedMerchant ? '✓ INJECTED' : 'INJECT'}
-                </button>
-              </div>
+          {/* 2. Midnight Account Takeover */}
+          <button
+            type="button"
+            onClick={() => handleApplyScenario('ATO')}
+            className={`p-3 rounded-lg border text-left transition-all flex flex-col justify-between ${
+              activeScenario === 'ATO'
+                ? 'bg-[#151922] border-amber-500 ring-1 ring-amber-500'
+                : 'bg-[#151922] border-slate-800 hover:border-amber-500/50'
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-1.5">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="font-bold text-white">02 Account Takeover</span>
             </div>
+            <p className="text-[10px] font-sans text-neutral-400">
+              8.5× spend spike on an unrecognized device from Moscow IP.
+            </p>
+            <span className="text-[9px] mt-2 text-rose-400 font-bold uppercase">Expected: BLOCK</span>
+          </button>
+
+          {/* 3. Velocity Attack (The Velocity Option) */}
+          <button
+            type="button"
+            onClick={() => handleApplyScenario('VELOCITY')}
+            className={`p-3 rounded-lg border text-left transition-all flex flex-col justify-between ${
+              activeScenario === 'VELOCITY'
+                ? 'bg-[#151922] border-purple-500 ring-1 ring-purple-500'
+                : 'bg-[#151922] border-slate-800 hover:border-purple-500/50'
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-1.5">
+              <RotateCw className="w-4 h-4 text-purple-400 shrink-0" />
+              <span className="font-bold text-white">03 Velocity Burst</span>
+            </div>
+            <p className="text-[10px] font-sans text-neutral-400">
+              Bot storm: 6 rapid micro-charges in under 1 second.
+            </p>
+            <span className="text-[9px] mt-2 text-purple-400 font-bold uppercase">Redis ZSET Rate Limit</span>
+          </button>
+
+          {/* 4. Watchlist Merchant */}
+          <button
+            type="button"
+            onClick={() => handleApplyScenario('WATCHLIST')}
+            className={`p-3 rounded-lg border text-left transition-all flex flex-col justify-between ${
+              activeScenario === 'WATCHLIST'
+                ? 'bg-[#151922] border-rose-500 ring-1 ring-rose-500'
+                : 'bg-[#151922] border-slate-800 hover:border-rose-500/50'
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-1.5">
+              <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+              <span className="font-bold text-white">04 Watchlist Vendor</span>
+            </div>
+            <p className="text-[10px] font-sans text-neutral-400">
+              Checkout routed to sanctioned DarkMixer Escrow endpoint.
+            </p>
+            <span className="text-[9px] mt-2 text-rose-400 font-bold uppercase">Expected: BLOCK</span>
+          </button>
+
+          {/* 5. Syndicate Collusion Ring */}
+          <button
+            type="button"
+            onClick={() => handleApplyScenario('COLLUSION')}
+            className={`p-3 rounded-lg border text-left transition-all flex flex-col justify-between ${
+              activeScenario === 'COLLUSION'
+                ? 'bg-[#151922] border-cyan-500 ring-1 ring-cyan-500'
+                : 'bg-[#151922] border-slate-800 hover:border-cyan-500/50'
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-1.5">
+              <Network className="w-4 h-4 text-cyan-400 shrink-0" />
+              <span className="font-bold text-white">05 Fraud Ring</span>
+            </div>
+            <p className="text-[10px] font-sans text-neutral-400">
+              Shares physical burner hardware with a banned fraudster.
+            </p>
+            <span className="text-[9px] mt-2 text-cyan-400 font-bold uppercase">2-Hop BFS Graph</span>
+          </button>
+        </div>
+
+        {/* SIDE-BY-SIDE: "BASELINE NORMALCY VS. SIMULATED ATTEMPT" VISUAL DIFF */}
+        <div className="mt-3 bg-[#151922] border border-slate-800 rounded-xl p-3.5 space-y-2 text-xs">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <span className="text-neutral-300 font-bold uppercase flex items-center gap-1.5">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-blue-400" />
+              <span>SIDE-BY-SIDE ANOMALY DIFF (BASELINE VS. INCOMING ATTEMPT):</span>
+            </span>
+            <span className="text-[10px] text-neutral-400">Visual Deviation Inspection</span>
           </div>
 
-          {/* Footer stats */}
-          <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] font-mono">
-            <span className="text-neutral-400">ACTIVE SIGNALS: [{[isUnusualAmount, isNewDevice, isLocationHop, isBlacklistedMerchant, isVelocityBurst].filter(Boolean).length}]</span>
-            <button
-              type="button"
-              onClick={() => {
-                setIsUnusualAmount(false);
-                setIsNewDevice(false);
-                setIsLocationHop(false);
-                setIsBlacklistedMerchant(false);
-                setIsVelocityBurst(false);
-              }}
-              className="text-rose-400 hover:text-rose-300 transition-colors"
-            >
-              CLEAR ALL
-            </button>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-2 pt-1">
+            {/* Amount Diff */}
+            <div className="bg-[#1c222e] p-2.5 rounded-lg border border-slate-800">
+              <span className="text-[10px] text-neutral-400 uppercase block">Transaction Amount</span>
+              <div className="mt-1 flex items-baseline justify-between">
+                <span className="text-neutral-400 font-sans text-[11px]">Normal: {currencySymbol}{currentCustomer.typicalSpendMax} max</span>
+                <span className={`font-mono font-bold ${amount > (currentCustomer.typicalSpendMax || 50) * 2.5 ? 'text-rose-400' : 'text-white'}`}>
+                  {currencySymbol}{amount}
+                </span>
+              </div>
+              {amount > (currentCustomer.typicalSpendMax || 50) * 2.5 ? (
+                <span className="text-[9px] text-rose-400 font-bold uppercase block mt-1">🔴 Significant Spend Spike</span>
+              ) : (
+                <span className="text-[9px] text-emerald-400 font-bold uppercase block mt-1">🟢 Within Normal Range</span>
+              )}
+            </div>
+
+            {/* Device Diff */}
+            <div className="bg-[#1c222e] p-2.5 rounded-lg border border-slate-800">
+              <span className="text-[10px] text-neutral-400 uppercase block">Device Fingerprint</span>
+              <div className="mt-1 flex items-baseline justify-between text-[11px]">
+                <span className="text-neutral-400 font-sans truncate max-w-[90px]">{currentCustomer.primaryDevice}</span>
+                <span className={`font-bold ${isNewDevice ? 'text-amber-400' : isCollusionDevice ? 'text-cyan-400' : 'text-emerald-400'}`}>
+                  {isCollusionDevice ? 'Shared Tablet' : isNewDevice ? 'Unknown Linux' : 'Registered Device'}
+                </span>
+              </div>
+              {isCollusionDevice ? (
+                <span className="text-[9px] text-cyan-400 font-bold uppercase block mt-1">🕸️ Syndicate Shared HW</span>
+              ) : isNewDevice ? (
+                <span className="text-[9px] text-amber-400 font-bold uppercase block mt-1">⚠️ New Untrusted Device</span>
+              ) : (
+                <span className="text-[9px] text-emerald-400 font-bold uppercase block mt-1">🟢 Trusted Hardware</span>
+              )}
+            </div>
+
+            {/* Geolocation / IP Diff */}
+            <div className="bg-[#1c222e] p-2.5 rounded-lg border border-slate-800">
+              <span className="text-[10px] text-neutral-400 uppercase block">Geolocation / IP</span>
+              <div className="mt-1 flex items-baseline justify-between text-[11px]">
+                <span className="text-neutral-400 font-sans truncate max-w-[90px]">{currentCustomer.usualLocation?.split(',')[0]}</span>
+                <span className={`font-bold ${isLocationHop ? 'text-rose-400' : 'text-emerald-400'}`}>
+                  {isLocationHop ? 'Moscow (Proxy)' : 'Home Subnet'}
+                </span>
+              </div>
+              {isLocationHop ? (
+                <span className="text-[9px] text-rose-400 font-bold uppercase block mt-1">🔴 Impossible Geo Hop</span>
+              ) : (
+                <span className="text-[9px] text-emerald-400 font-bold uppercase block mt-1">🟢 Home IP Verified</span>
+              )}
+            </div>
+
+            {/* Merchant Diff */}
+            <div className="bg-[#1c222e] p-2.5 rounded-lg border border-slate-800">
+              <span className="text-[10px] text-neutral-400 uppercase block">Receiving Merchant</span>
+              <div className="mt-1 flex items-baseline justify-between text-[11px]">
+                <span className="text-neutral-400 font-sans">Verified Retail</span>
+                <span className={`font-bold truncate max-w-[100px] ${isBlacklistedMerchant ? 'text-rose-400' : 'text-emerald-400'}`}>
+                  {MERCHANTS.find((m) => m.id === selectedMerchantId)?.name.split(' ')[0] || selectedMerchantId}
+                </span>
+              </div>
+              {isBlacklistedMerchant ? (
+                <span className="text-[9px] text-rose-400 font-bold uppercase block mt-1">⛔ Sanctioned Watchlist</span>
+              ) : (
+                <span className="text-[9px] text-emerald-400 font-bold uppercase block mt-1">🟢 Merchant Cleared</span>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* CARD 5: TRANSACTION TIMELINE (Real Evaluation Execution Log) */}
-        <div className="lg:col-span-4 bg-[#1c222e] border border-slate-800/80 rounded-xl p-4 space-y-3 flex flex-col justify-between shadow-sm">
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <div className="flex items-center gap-2 text-xs font-bold font-mono text-white uppercase">
-                <Activity className="w-4 h-4 text-cyan-400" />
-                <span>TRANSACTION TIMELINE</span>
-              </div>
-              <span className={`text-[10px] font-mono ${lastResult ? 'text-emerald-400' : 'text-neutral-400'}`}>
-                {lastResult ? 'EVALUATION COMPLETED' : 'AWAITING SIMULATION'}
+        {/* VELOCITY BURST PROGRESS INDICATOR */}
+        {bursting && burstProgress && (
+          <div className="bg-[#151922] border border-purple-500/50 rounded-xl p-3 space-y-1.5 animate-pulse">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-purple-300 font-bold flex items-center gap-2">
+                <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                <span>EXECUTING REDIS SLIDING WINDOW BURST [{burstProgress.current}/{burstProgress.total}]</span>
+              </span>
+              <span className={`text-[10px] font-bold ${burstProgress.fired ? 'text-rose-400' : 'text-emerald-400'}`}>
+                {burstProgress.fired ? '⚠️ THRESHOLD LIMIT BREACHED (RULE_01 FIRED)' : 'UNDER RATE LIMIT (PASS)'}
               </span>
             </div>
+            <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+              <div
+                style={{ width: `${(burstProgress.current / burstProgress.total) * 100}%` }}
+                className={`h-full transition-all duration-150 ${burstProgress.fired ? 'bg-rose-500' : 'bg-purple-500'}`}
+              />
+            </div>
+          </div>
+        )}
 
-            {/* Genuine Timeline Log */}
-            {!lastResult ? (
-              <div className="p-4 rounded-lg bg-[#151922] border border-slate-800 text-center space-y-2 text-xs font-mono">
-                <Activity className="w-6 h-6 text-neutral-400 mx-auto animate-pulse" />
-                <div className="text-white font-bold">PIPELINE STANDBY</div>
-                <p className="text-[10px] text-neutral-400 font-sans">
-                  Click &apos;SIMULATE TRANSACTION&apos; to trigger the evaluation pipeline.
-                </p>
+        {/* SLOW-MOTION PIPELINE INSPECTOR ANIMATION */}
+        {inspectorMode && inspectorStep > 0 && (
+          <div className="bg-[#151922] border border-purple-500/60 rounded-xl p-3 text-xs space-y-2">
+            <div className="flex items-center justify-between text-purple-300 font-bold">
+              <span>PIPELINE EXECUTION INSPECTOR:</span>
+              <span>STAGE {inspectorStep} OF 5</span>
+            </div>
+            <div className="grid grid-cols-5 gap-1.5 text-[10px] text-center">
+              <div className={`p-1.5 rounded ${inspectorStep >= 1 ? 'bg-blue-600 text-white font-bold' : 'bg-slate-800 text-neutral-500'}`}>
+                1. Mutex Lock
               </div>
-            ) : (
-              <div className="space-y-2 text-xs font-mono pl-1 pt-1">
-                <div className="flex items-start gap-2.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
-                  <div>
-                    <div className="text-white font-bold">Account Profile Verified</div>
-                    <div className="text-[10px] text-neutral-400 font-sans">{currentCustomer.name} ({currentCustomer.riskSegment} Risk)</div>
-                  </div>
-                </div>
+              <div className={`p-1.5 rounded ${inspectorStep >= 2 ? 'bg-blue-600 text-white font-bold' : 'bg-slate-800 text-neutral-500'}`}>
+                2. Redis Velocity
+              </div>
+              <div className={`p-1.5 rounded ${inspectorStep >= 3 ? 'bg-blue-600 text-white font-bold' : 'bg-slate-800 text-neutral-500'}`}>
+                3. Device / IP
+              </div>
+              <div className={`p-1.5 rounded ${inspectorStep >= 4 ? 'bg-blue-600 text-white font-bold' : 'bg-slate-800 text-neutral-500'}`}>
+                4. Graph BFS
+              </div>
+              <div className={`p-1.5 rounded ${inspectorStep >= 5 ? 'bg-emerald-600 text-white font-bold' : 'bg-slate-800 text-neutral-500'}`}>
+                5. Decision Emit
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
-                <div className="flex items-start gap-2.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
-                  <div>
-                    <div className="text-white font-bold">Payment Ingested</div>
-                    <div className="text-[10px] text-neutral-400 font-sans">{currencySymbol}{amount} • Merchant: {selectedMerchantId}</div>
-                  </div>
-                </div>
+      {/* STEP 3: EXPLAINABILITY SCORECARD & DECISION RESULTS */}
+      <div className="space-y-4 font-mono">
+        <div className="flex items-center justify-between text-xs pb-1 border-b border-slate-800">
+          <div className="flex items-center gap-2 text-white font-bold uppercase tracking-wider">
+            <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[11px]">3</span>
+            <span>REAL-TIME DECISION &amp; RULE-BY-RULE EXPLAINABILITY SCORECARD:</span>
+          </div>
+          {lastResult && (
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 font-bold border border-emerald-500/40">
+                ⚡ {lastResult.evaluationTimeMs}ms Engine Latency
+              </span>
+              <span className="text-[10px] text-neutral-400">SLA &lt;50ms Met</span>
+            </div>
+          )}
+        </div>
 
-                <div className="flex items-start gap-2.5">
-                  <span className="w-2 h-2 rounded-full bg-cyan-400 mt-1.5 shrink-0" />
-                  <div>
-                    <div className="text-cyan-300 font-bold">Rules &amp; Graph Evaluated</div>
-                    <div className="text-[10px] text-neutral-400 font-sans">Server Latency: {lastResult.evaluationTimeMs}ms</div>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-2.5">
-                  <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
-                    lastResult.decision === 'ALLOW' ? 'bg-emerald-400' :
-                    lastResult.decision === 'REVIEW' ? 'bg-amber-400' : 'bg-rose-400'
-                  }`} />
-                  <div>
-                    <div className={`font-bold ${
+        {/* DECISION SUMMARY BANNER & SCORE GAUGE */}
+        {lastResult ? (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            {/* Large Verdict Box (8 Cols) */}
+            <div className={`lg:col-span-8 p-5 rounded-xl border flex flex-col justify-between ${
+              lastResult.decision === 'ALLOW'
+                ? 'bg-emerald-950/40 border-emerald-500/60 shadow-lg shadow-emerald-950/40'
+                : lastResult.decision === 'REVIEW'
+                ? 'bg-amber-950/40 border-amber-500/60 shadow-lg shadow-amber-950/40'
+                : 'bg-rose-950/40 border-rose-500/60 shadow-lg shadow-rose-950/40'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">VERDICT ISSUED:</span>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-3xl font-black uppercase tracking-wider ${
                       lastResult.decision === 'ALLOW' ? 'text-emerald-400' :
                       lastResult.decision === 'REVIEW' ? 'text-amber-400' : 'text-rose-400'
                     }`}>
-                      Decision: {lastResult.decision} ({lastResult.finalScore} Pts)
-                    </div>
-                    <div className="text-[10px] text-neutral-400 font-sans">Txn ID: {lastResult.transactionId}</div>
+                      {lastResult.decision}
+                    </span>
+                    <span className={`text-xs px-2 py-1 rounded font-bold uppercase ${
+                      lastResult.decision === 'ALLOW' ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-500' :
+                      lastResult.decision === 'REVIEW' ? 'bg-amber-900/60 text-amber-300 border border-amber-500' :
+                      'bg-rose-900/60 text-rose-300 border border-rose-500'
+                    }`}>
+                      {lastResult.decision === 'ALLOW' ? 'Clean Checkout Approved' : lastResult.decision === 'REVIEW' ? 'Held for Manual Analyst Review' : 'Fraud Intercepted'}
+                    </span>
                   </div>
                 </div>
+
+                <div className="text-right">
+                  <span className="text-[10px] text-neutral-400 uppercase">Transaction ID:</span>
+                  <div className="text-xs font-bold text-cyan-300">{lastResult.transactionId}</div>
+                  <div className="text-[10px] text-neutral-400">{lastResult.timestamp?.split('T')[0] || 'Today'}</div>
+                </div>
               </div>
-            )}
-          </div>
 
-          <div className="pt-2 border-t border-slate-800 text-[10px] font-mono text-neutral-400 flex items-center justify-between">
-            <span>TXN ID:</span>
-            <span className="text-cyan-400 truncate max-w-[160px]">{lastResult?.transactionId || 'Standby'}</span>
-          </div>
-        </div>
+              {/* AI COPILOT REASONING PARAGRAPH */}
+              <div className="mt-4 p-3 rounded-lg bg-[#151922]/80 border border-slate-800 text-xs text-neutral-300 leading-relaxed font-sans">
+                <div className="flex items-center gap-1.5 text-cyan-400 font-mono font-bold text-[10px] uppercase mb-1">
+                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>AI Risk Copilot Reasoning:</span>
+                </div>
+                {lastResult.geminiReasoning ||
+                  (lastResult.decision === 'ALLOW'
+                    ? `Transaction of ${currencySymbol}${amount} for ${currentCustomer.name} conforms to customer's historical baseline profile. Device fingerprint, geolocation, and velocity are verified clean.`
+                    : lastResult.decision === 'REVIEW'
+                    ? `Transaction exhibits moderate risk signals (${lastResult.finalScore} pts). Routed to analyst queue for human inspection before settlement.`
+                    : `Transaction intercepted with an aggregate penalty of ${lastResult.finalScore} pts. High-confidence fraud detected due to severe deviation from account history.`)}
+              </div>
+            </div>
 
-        {/* CARD 6: WHY WAS THIS BLOCKED? (4 Cols) */}
-        <div className="lg:col-span-4 bg-[#1c222e] border border-slate-800/80 rounded-xl p-4 space-y-3 flex flex-col justify-between shadow-sm">
-          <div className="space-y-2.5">
+            {/* Radial Score Gauge (4 Cols) */}
+            <div className="lg:col-span-4 bg-[#1c222e] border border-slate-800 p-4 rounded-xl flex flex-col items-center justify-center">
+              <span className="text-[10px] text-neutral-400 uppercase mb-1">AGGREGATE RISK SCORE</span>
+              <div className="relative w-44 h-24 flex items-end justify-center">
+                <svg className="w-44 h-24 overflow-visible" viewBox="0 0 160 90">
+                  <path d="M 15 80 A 65 65 0 0 1 145 80" fill="none" stroke="#11141a" strokeWidth="12" strokeLinecap="round" />
+                  <path d="M 15 80 A 65 65 0 0 1 60 28" fill="none" stroke="#10b981" strokeWidth="10" strokeLinecap="round" opacity="0.8" />
+                  <path d="M 60 28 A 65 65 0 0 1 100 28" fill="none" stroke="#f59e0b" strokeWidth="10" strokeLinecap="round" opacity="0.8" />
+                  <path d="M 100 28 A 65 65 0 0 1 145 80" fill="none" stroke="#f43f5e" strokeWidth="10" strokeLinecap="round" opacity="0.8" />
+                </svg>
+                <div className="absolute bottom-0 flex flex-col items-center">
+                  <span className={`text-3xl font-black font-mono ${
+                    displayedScore < 30 ? 'text-emerald-400' : displayedScore < 70 ? 'text-amber-400' : 'text-rose-400'
+                  }`}>
+                    {displayedScore}
+                  </span>
+                  <span className="text-[10px] font-mono text-neutral-400">/ 100 PTS</span>
+                </div>
+              </div>
+              <div className="text-[10px] text-neutral-400 mt-2 text-center font-sans">
+                &lt;30 ALLOW • 30–69 REVIEW • &ge;70 BLOCK
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="p-8 rounded-xl bg-[#1c222e] border border-slate-800 text-center space-y-2">
+            <Activity className="w-8 h-8 text-neutral-500 mx-auto animate-pulse" />
+            <div className="text-white font-bold text-sm">DECISION PIPELINE STANDBY</div>
+            <p className="text-xs text-neutral-400 font-sans max-w-md mx-auto">
+              Select a customer persona above and choose a situation, then click &apos;SIMULATE TRANSACTION&apos; to run the real-time scoring engine.
+            </p>
+          </div>
+        )}
+
+        {/* THE COMPLETE RULE-BY-RULE EXPLAINABILITY MATRIX (ALL 7 RULES) */}
+        {lastResult && (
+          <div className="bg-[#1c222e] border border-slate-800 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <div className="flex items-center gap-2 text-xs font-bold font-mono text-white uppercase">
+              <span className="text-xs font-bold text-white uppercase flex items-center gap-1.5">
                 <FileText className="w-4 h-4 text-cyan-400" />
-                <span>EXPLAINABILITY AUDIT</span>
-              </div>
-              <span className="text-[10px] text-neutral-400 font-mono">
-                {lastResult ? `${lastResult.firedRules.length} SIGNALS` : 'STANDBY'}
+                <span>PRODUCTION RULE MATRIX BREAKDOWN (7 STRATEGIES EVALUATED):</span>
+              </span>
+              <span className="text-[10px] text-neutral-400">
+                {ruleEvaluationMatrix.filter((r) => r.triggered).length} of 7 Rules Triggered
               </span>
             </div>
 
-            {!lastResult || lastResult.firedRules.length === 0 ? (
-              <div className="p-4 rounded-lg bg-[#151922] border border-slate-800 text-center space-y-1.5">
-                <CheckCircle2 className="w-6 h-6 text-emerald-400 mx-auto" />
-                <div className="text-xs font-bold text-white font-mono">NO THREATS DETECTED</div>
-                <p className="text-[10px] text-neutral-400 font-sans">
-                  Transaction parameters conform to customer baseline historical profile.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {lastResult.firedRules.map((ruleText, idx) => {
-                  const isHigh = ruleText.includes('50') || ruleText.includes('80') || ruleText.includes('75');
-                  const isMed = ruleText.includes('40') || ruleText.includes('60');
-
-                  return (
-                    <div key={idx} className="p-2.5 rounded-lg bg-[#151922] border border-slate-800 flex items-center justify-between gap-2 text-xs font-mono">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className={`w-7 h-7 rounded flex items-center justify-center font-bold text-[10px] shrink-0 ${
-                          isHigh ? 'bg-rose-950 text-rose-400 border border-rose-600/40' :
-                          isMed ? 'bg-amber-950 text-amber-400 border border-amber-600/40' :
-                          'bg-blue-950 text-cyan-400 border border-cyan-600/40'
-                        }`}>
-                          #{idx + 1}
-                        </div>
-                        <span className="text-[11px] text-neutral-200 truncate font-sans">{ruleText}</span>
+            <div className="divide-y divide-slate-800/80">
+              {ruleEvaluationMatrix.map((rule) => (
+                <div key={rule.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                  <div className="flex items-start gap-2.5">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold shrink-0 mt-0.5 ${
+                      rule.triggered ? 'bg-rose-950 text-rose-400 border border-rose-500/50' : 'bg-emerald-950 text-emerald-400 border border-emerald-500/50'
+                    }`}>
+                      {rule.triggered ? `+${rule.defaultWeight} PTS` : '+0 PTS'}
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white">{rule.id}: {rule.name}</span>
+                        <span className="text-[10px] text-neutral-400 font-sans">({rule.metric})</span>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-[9px] text-amber-400 font-mono tracking-tighter">|||</span>
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
-                          isHigh ? 'bg-rose-950 text-rose-300 border border-rose-600/50' :
-                          isMed ? 'bg-amber-950 text-amber-300 border border-amber-600/50' :
-                          'bg-slate-800 text-neutral-300 border border-slate-700'
-                        }`}>
-                          {isHigh ? 'HIGH' : isMed ? 'MED' : 'LOW'}
-                        </span>
-                      </div>
+                      <p className="text-[11px] text-neutral-300 font-sans mt-0.5">{rule.reason}</p>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                  </div>
 
-          <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] font-mono">
-            <span className="text-neutral-400">EXPLAINABILITY: XAI-SHAP</span>
-            {lastResult && (
-              <button
-                type="button"
-                onClick={handleExportDocket}
-                className="text-cyan-400 hover:text-cyan-300 font-bold"
-              >
-                {copiedDocket ? 'COPIED!' : 'EXPORT DOCKET →'}
-              </button>
-            )}
+                  <span className={`text-[10px] font-bold uppercase shrink-0 self-start sm:self-auto px-2 py-0.5 rounded ${
+                    rule.triggered ? 'text-rose-400 bg-rose-950/60' : 'text-emerald-400 bg-emerald-950/60'
+                  }`}>
+                    {rule.triggered ? '🔴 TRIGGERED' : '🟢 CLEARED'}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* 2-HOP GRAPH COLLUSION POPUP (WHEN RULE_07 OR PERSONA 5 IS ACTIVE) */}
+        {lastResult && (isCollusionDevice || selectedCustomerId === 'usr_viktor') && (
+          <div className="bg-[#1c222e] border border-cyan-500/50 rounded-xl p-4 space-y-2">
+            <div className="flex items-center justify-between text-xs text-cyan-300 font-bold">
+              <span className="flex items-center gap-1.5">
+                <Network className="w-4 h-4 text-cyan-400" />
+                <span>2-HOP BFS GRAPH TRAVERSAL SYNDICATE MAP:</span>
+              </span>
+              <span className="text-[10px] text-rose-400 font-bold uppercase">COLLUSION DETECTED (RULE_07)</span>
+            </div>
+            <div className="p-3 bg-[#151922] rounded-lg border border-slate-800 flex items-center justify-center gap-3 text-xs flex-wrap">
+              <span className="px-2.5 py-1 rounded bg-blue-950 text-blue-300 border border-blue-500/40 font-bold">
+                User: {currentCustomer.name}
+              </span>
+              <ArrowRight className="w-3.5 h-3.5 text-neutral-500" />
+              <span className="px-2.5 py-1 rounded bg-amber-950 text-amber-300 border border-amber-500/40 font-bold">
+                Hardware: fp_shared_syndicate_ipad
+              </span>
+              <ArrowRight className="w-3.5 h-3.5 text-neutral-500" />
+              <span className="px-2.5 py-1 rounded bg-rose-950 text-rose-300 border border-rose-500/40 font-bold">
+                Banned Kingpin: usr_syndicate_banned_99 (BLOCKED)
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* INTERACTIVE SENSITIVITY PLAYGROUND ("WHAT IF?" SPEND SLIDER) */}
+        {lastResult && (
+          <div className="bg-[#1c222e] border border-slate-800 rounded-xl p-3.5 space-y-2 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-neutral-300 font-bold uppercase flex items-center gap-1.5">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400" />
+                <span>SENSITIVITY PLAYGROUND: &quot;WHAT IF SPEND WAS DIFFERENT?&quot;</span>
+              </span>
+              <span className="text-white font-bold">{currencySymbol}{sensitivityAmount.toFixed(2)}</span>
+            </div>
+            <input
+              type="range"
+              min={Math.max(5, (currentCustomer.typicalSpendMin || 10) / 2)}
+              max={(currentCustomer.typicalSpendMax || 100) * 8}
+              step={5}
+              value={sensitivityAmount}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                setSensitivityAmount(val);
+                setAmount(val);
+              }}
+              className="w-full accent-blue-500 cursor-pointer"
+            />
+            <div className="flex justify-between text-[10px] text-neutral-400 font-sans">
+              <span>Typical Min: {currencySymbol}{currentCustomer.typicalSpendMin}</span>
+              <span>Typical Max: {currencySymbol}{currentCustomer.typicalSpendMax}</span>
+              <span>8× Deviation: {currencySymbol}{(currentCustomer.typicalSpendMax || 50) * 8}</span>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* BOTTOM GLOBAL ACTION BAR */}
+      {/* GLOBAL ACTIONS: SIMULATE & EXPORT */}
       <div className="pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 font-mono">
         <button
           type="button"
-          onClick={() => {
-            setIsUnusualAmount(false);
-            setIsNewDevice(false);
-            setIsLocationHop(false);
-            setIsBlacklistedMerchant(false);
-            setIsVelocityBurst(false);
-            setSelectedMerchantId('mer_grocery_fresh');
-            const def = currentCustomer.typicalSpendMin
-              ? Math.round((currentCustomer.typicalSpendMin + (currentCustomer.typicalSpendMax || 3000)) / 2)
-              : 1200;
-            setAmount(def);
-          }}
+          onClick={() => handleSelectCustomer(selectedCustomerId)}
           className="px-4 py-2.5 rounded-lg bg-[#1c222e] hover:bg-slate-700 text-neutral-300 border border-slate-700/80 text-xs font-bold transition-colors flex items-center gap-2"
         >
           <RotateCcw className="w-3.5 h-3.5" />
-          <span>RESET BASELINE</span>
+          <span>RESET SITUATION</span>
         </button>
 
         {/* Big Cobalt Blue Primary Simulate Button */}
@@ -1079,7 +1126,7 @@ export function TransactionSimulator() {
           {loading || bursting ? (
             <>
               <RefreshCw className="w-4 h-4 animate-spin" />
-              <span>{bursting ? 'EXECUTING 6X BURST...' : 'SCORING TRANSACTION PIPELINE...'}</span>
+              <span>{bursting ? 'EXECUTING VELOCITY BURST...' : 'RUNNING ENGINE EVALUATION...'}</span>
             </>
           ) : (
             <>
@@ -1092,10 +1139,11 @@ export function TransactionSimulator() {
         <button
           type="button"
           onClick={handleExportDocket}
-          className="px-4 py-2.5 rounded-lg bg-[#1c222e] hover:bg-slate-700 text-neutral-300 border border-slate-700/80 text-xs font-bold transition-colors flex items-center gap-2"
+          disabled={!lastResult}
+          className="px-4 py-2.5 rounded-lg bg-[#1c222e] hover:bg-slate-700 text-neutral-300 border border-slate-700/80 text-xs font-bold transition-colors flex items-center gap-2 disabled:opacity-50"
         >
           <FileText className="w-3.5 h-3.5 text-cyan-400" />
-          <span>{copiedDocket ? 'COPIED TO CLIPBOARD' : 'EXPORT REPORT'}</span>
+          <span>{copiedDocket ? 'COPIED TO CLIPBOARD' : 'EXPORT AUDIT DOCKET'}</span>
         </button>
       </div>
     </div>

@@ -29,5 +29,6 @@ public class CustomerResponse {
     private String primaryDeviceFingerprint;
     private Integer dailyTxnCount;
     private String occupation;
+    private Long historicalTxnCount;
     private List<String> trustedDeviceFingerprints;
 }

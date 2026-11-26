@@ -49,6 +49,24 @@ public interface TransactionRepository extends JpaRepository<Transaction, String
     List<Transaction> findRecentTransactions(Pageable pageable);
 
     /**
+     * Counts the total number of transactions recorded for a given user.
+     *
+     * @param userId Unique identifier of the user
+     * @return Total transaction count
+     */
+    long countByUserId(String userId);
+
+    /**
+     * Retrieves recent transactions for a specific user with pagination and eager relationships.
+     *
+     * @param userId Unique identifier of the user
+     * @param pageable Pagination criteria
+     * @return List of user transactions
+     */
+    @Query("SELECT t FROM Transaction t LEFT JOIN FETCH t.user LEFT JOIN FETCH t.device WHERE t.user.id = :userId ORDER BY t.timestamp DESC")
+    List<Transaction> findByUserIdOrderByTimestampDesc(@Param("userId") String userId, Pageable pageable);
+
+    /**
      * Retrieves a single transaction by ID with its user and device eagerly fetched.
      *
      * @param id Transaction identifier

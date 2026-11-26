@@ -6,12 +6,14 @@ import com.sentinelx.backend.entity.User;
 import com.sentinelx.backend.exception.ResourceNotFoundException;
 import com.sentinelx.backend.repository.DeviceRepository;
 import com.sentinelx.backend.repository.UserRepository;
+import com.sentinelx.backend.repository.TransactionRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -26,6 +28,11 @@ public class CustomerController {
 
     private final UserRepository userRepository;
     private final DeviceRepository deviceRepository;
+    private final TransactionRepository transactionRepository;
+
+    private static final List<String> PRIORITY_PERSONA_ORDER = List.of(
+            "usr_alice", "usr_arjun", "usr_sarah", "usr_david", "usr_viktor"
+    );
 
     @GetMapping
     @Operation(summary = "List all customer behavioral profiles with their spending and location baselines")
@@ -33,6 +40,10 @@ public class CustomerController {
         List<User> users = userRepository.findAll();
         List<CustomerResponse> responses = users.stream()
                 .map(this::toCustomerResponse)
+                .sorted(Comparator.comparingInt(c -> {
+                    int idx = PRIORITY_PERSONA_ORDER.indexOf(c.getId());
+                    return idx >= 0 ? idx : 999;
+                }))
                 .collect(Collectors.toList());
         return ResponseEntity.ok(responses);
     }
@@ -56,6 +67,8 @@ public class CustomerController {
         String primaryFp = primaryDev != null ? primaryDev.getFingerprint() : (user.getId() + "_primary_device");
         String usualIp = primaryDev != null ? primaryDev.getIpAddress() : (user.getUsualIpSubnet() != null ? user.getUsualIpSubnet() + "10" : "198.51.100.10");
 
+        long txnCount = transactionRepository.countByUserId(user.getId());
+
         return CustomerResponse.builder()
                 .id(user.getId())
                 .name(user.getName() != null ? user.getName() : user.getEmail())
@@ -71,6 +84,7 @@ public class CustomerController {
                 .dailyTxnCount(user.getDailyTxnCount() != null ? user.getDailyTxnCount() : 3)
                 .occupation(user.getOccupation() != null ? user.getOccupation() : "Account Holder")
                 .trustedDeviceFingerprints(trustedFp)
+                .historicalTxnCount(txnCount)
                 .build();
     }
 }

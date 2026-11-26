@@ -40,6 +40,7 @@ public class GraphSyndicateService {
         // Seed known historical fraud syndicate network
         markUserBlocked("usr_syndicate_banned_99");
         recordConnection("usr_syndicate_banned_99", "fp_charlie_phone", "203.0.113.88", "550000", true);
+        recordConnection("usr_syndicate_banned_99", "fp_shared_syndicate_ipad", "203.0.113.88", "550000", true);
         
         markUserBlocked("usr_botnet_controller_01");
         recordConnection("usr_botnet_controller_01", "fp_shared_syndicate_ipad", "203.0.113.99", "540000", true);

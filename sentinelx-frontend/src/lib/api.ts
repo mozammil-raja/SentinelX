@@ -92,6 +92,7 @@ export interface CustomerProfile {
   primaryDeviceFingerprint?: string;
   dailyTxnCount?: number;
   occupation?: string;
+  historicalTxnCount?: number;
   trustedDeviceFingerprints?: string[];
 }
 
@@ -224,8 +225,8 @@ export const api = {
         headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
         body: JSON.stringify(payload),
       }),
-    getRecent: (page = 0, size = 50) =>
-      fetchJson<TransactionResponse[]>(`/api/v1/transactions?page=${page}&size=${size}`),
+    getRecent: (page = 0, size = 50, userId?: string) =>
+      fetchJson<TransactionResponse[]>(`/api/v1/transactions?page=${page}&size=${size}${userId ? `&userId=${encodeURIComponent(userId)}` : ''}`),
     getById: (id: string) =>
       fetchJson<TransactionResponse>(`/api/v1/transactions/${id}`),
   },

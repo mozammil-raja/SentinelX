@@ -49,18 +49,26 @@ public class TransactionController {
 
     /**
      * Retrieves the most recent transactions recorded across the system with pagination.
+     * Optionally filters transactions by userId for persona inspection.
      *
      * @param page Page index (0-based, defaults to 0)
      * @param size Page size (defaults to 50, maximum 100)
+     * @param userId Optional filter by customer identifier
      * @return List of recent transactions ordered by newest first
      */
     @GetMapping
     public ResponseEntity<List<TransactionResponse>> getRecentTransactions(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String userId) {
         int boundedSize = Math.min(Math.max(1, size), 100);
         org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, boundedSize);
-        List<Transaction> transactions = transactionRepository.findRecentTransactions(pageable);
+        List<Transaction> transactions;
+        if (userId != null && !userId.isBlank()) {
+            transactions = transactionRepository.findByUserIdOrderByTimestampDesc(userId, pageable);
+        } else {
+            transactions = transactionRepository.findRecentTransactions(pageable);
+        }
         List<TransactionResponse> responseList = transactions.stream()
                 .map(TransactionResponse::fromEntity)
                 .collect(Collectors.toList());
