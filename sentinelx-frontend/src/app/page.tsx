@@ -11,6 +11,7 @@ import { ReviewQueuePanel } from '@/components/ReviewQueuePanel';
 import { VelocityTelemetryCard } from '@/components/VelocityTelemetryCard';
 import { BacktestStudio } from '@/components/BacktestStudio';
 import { GraphSyndicateVisualizer } from '@/components/GraphSyndicateVisualizer';
+import { TransactionLedger } from '@/components/TransactionLedger';
 import {
   Shield,
   Activity,
@@ -19,6 +20,7 @@ import {
   Gauge,
   FlaskConical,
   Network,
+  Database,
   LogIn,
   LogOut,
   Terminal,
@@ -29,7 +31,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 
-type Tab = 'stream' | 'rules' | 'reviews' | 'velocity' | 'backtest' | 'graph';
+type Tab = 'stream' | 'rules' | 'reviews' | 'velocity' | 'backtest' | 'graph' | 'ledger';
 
 function DashboardContent() {
   const { status, decisions, lastPing, clearDecisions } = useDecisionStream();
@@ -37,7 +39,7 @@ function DashboardContent() {
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash.replace('#', '') as Tab;
-      if (['stream', 'rules', 'reviews', 'velocity', 'backtest', 'graph'].includes(hash)) {
+      if (['stream', 'rules', 'reviews', 'velocity', 'backtest', 'graph', 'ledger'].includes(hash)) {
         return hash;
       }
     }
@@ -50,7 +52,7 @@ function DashboardContent() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '') as Tab;
-      if (['stream', 'rules', 'reviews', 'velocity', 'backtest', 'graph'].includes(hash)) {
+      if (['stream', 'rules', 'reviews', 'velocity', 'backtest', 'graph', 'ledger'].includes(hash)) {
         setActiveTab(hash);
       }
     };
@@ -91,6 +93,7 @@ function DashboardContent() {
       else if (e.key === '4') handleTabChange('velocity');
       else if (e.key === '5') handleTabChange('backtest');
       else if (e.key === '6') handleTabChange('graph');
+      else if (e.key === '7') handleTabChange('ledger');
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -154,7 +157,7 @@ function DashboardContent() {
               <span className="text-slate-700">|</span>
               <div className="flex items-center gap-2">
                 <span className="text-neutral-400">LATENCY:</span>
-                <span className="text-emerald-400 font-bold">&lt; 10ms</span>
+                <span className="text-emerald-400 font-bold">{decisions.length > 0 ? `${avgLatency} ms` : 'STANDBY'}</span>
                 <svg className="w-14 h-3.5 overflow-visible" viewBox="0 0 60 14">
                   <polyline
                     fill="none"
@@ -256,6 +259,18 @@ function DashboardContent() {
               >
                 <Network className="w-3.5 h-3.5" />
                 <span>6. GRAPH</span>
+              </button>
+
+              <button
+                onClick={() => handleTabChange('ledger')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-all ${
+                  activeTab === 'ledger'
+                    ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-900/40'
+                    : 'text-neutral-400 hover:text-white hover:bg-slate-800/60'
+                }`}
+              >
+                <Database className="w-3.5 h-3.5" />
+                <span>7. LEDGER</span>
               </button>
             </nav>
 
@@ -369,6 +384,18 @@ function DashboardContent() {
                 <Network className="w-4 h-4 text-rose-400" />
                 <span>Entity Graph</span>
               </button>
+
+              <button
+                onClick={() => handleTabChange('ledger')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-left ${
+                  activeTab === 'ledger'
+                    ? 'bg-blue-600 text-white font-bold shadow-sm shadow-blue-900/40 border-l-4 border-white'
+                    : 'text-neutral-400 hover:text-white hover:bg-slate-800/50'
+                }`}
+              >
+                <Database className="w-4 h-4 text-cyan-400" />
+                <span>Transaction Ledger</span>
+              </button>
             </nav>
           </div>
 
@@ -459,6 +486,12 @@ function DashboardContent() {
               <GraphSyndicateVisualizer />
             </div>
           )}
+
+          {activeTab === 'ledger' && (
+            <div className="space-y-6">
+              <TransactionLedger />
+            </div>
+          )}
         </main>
       </div>
 
@@ -529,6 +562,13 @@ function DashboardContent() {
               >
                 <span>6. Open Syndicate Graph Intelligence Visualizer</span>
                 <span className="text-[10px] border border-current px-1 rounded">6</span>
+              </button>
+              <button
+                onClick={() => { handleTabChange('ledger'); setIsCommandOpen(false); }}
+                className="w-full p-2 rounded-lg text-left hover:bg-blue-600 hover:text-white transition-colors flex items-center justify-between"
+              >
+                <span>7. Open Transaction Ledger &amp; Adaptive Risk</span>
+                <span className="text-[10px] border border-current px-1 rounded">7</span>
               </button>
 
               <div className="text-[10px] text-neutral-400 uppercase px-2 py-1 pt-2 border-t border-slate-700">QUICK ACTIONS</div>

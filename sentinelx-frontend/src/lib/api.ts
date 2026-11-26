@@ -20,6 +20,14 @@ export interface TransactionRequest {
   browser?: string;
 }
 
+export interface RuleResult {
+  triggered: boolean;
+  scoreContribution: number;
+  ruleId: string;
+  ruleName: string;
+  reason: string;
+}
+
 export interface DecisionResponse {
   decisionId: string;
   transactionId: string;
@@ -27,6 +35,7 @@ export interface DecisionResponse {
   finalScore: number;
   decision: 'ALLOW' | 'REVIEW' | 'BLOCK';
   firedRules: string[];
+  ruleResults?: RuleResult[];
   evaluationTimeMs: number;
   geminiScore?: number;
   geminiCategory?: string;
@@ -96,6 +105,21 @@ export interface CustomerProfile {
   trustedDeviceFingerprints?: string[];
 }
 
+export interface RiskRecalculationResult {
+  userId: string;
+  name: string;
+  previousRiskSegment: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  newRiskSegment: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  changed: boolean;
+  totalTransactions: number;
+  recentWindowSize: number;
+  recentApprovedCount: number;
+  recentReviewCount: number;
+  recentBlockedCount: number;
+  recentAverageScore: number;
+  reason: string;
+}
+
 export interface TransactionResponse {
   id: string;
   userId: string;
@@ -133,16 +157,23 @@ async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T>
 
   const response = await fetch(url, {
     ...options,
+    signal: options?.signal ?? AbortSignal.timeout(10_000),
     headers: {
-      'Content-Type': 'application/json',
+      ...(options?.body !== undefined && typeof options?.body === 'string' ? { 'Content-Type': 'application/json' } : {}),
       ...authHeader,
       ...options?.headers,
     },
   });
 
   if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`API Error [${response.status}] ${response.statusText}: ${errorBody}`);
+    let detail = '';
+    try {
+      const parsed = await response.json();
+      detail = parsed?.message || JSON.stringify(parsed);
+    } catch {
+      detail = await response.text();
+    }
+    throw new Error(`API Error [${response.status}] ${response.statusText}: ${detail}`);
   }
 
   return response.json();
@@ -215,6 +246,10 @@ export const api = {
   customers: {
     getAll: () => fetchJson<CustomerProfile[]>('/api/v1/customers'),
     getById: (id: string) => fetchJson<CustomerProfile>(`/api/v1/customers/${id}`),
+    resetSimulation: (id: string) =>
+      fetchJson<{ status: string; userId: string }>(`/api/v1/customers/${id}/reset`, { method: 'POST' }),
+    recalculateAllRisk: () =>
+      fetchJson<RiskRecalculationResult[]>('/api/v1/customers/recalculate-risk', { method: 'POST' }),
   },
 
   // Transaction Ingestion & Inquiries
@@ -248,6 +283,8 @@ export const api = {
   velocity: {
     getUserVelocity: (userId: string, windowSeconds = 300) =>
       fetchJson<VelocityMetrics>(`/api/v1/velocity/user/${userId}?window=${windowSeconds}`),
+    resetUserVelocity: (userId: string) =>
+      fetchJson<{ message: string; userId: string; timestamp: string }>(`/api/v1/velocity/user/${userId}`, { method: 'DELETE' }),
     getIpVelocity: (ip: string, windowSeconds = 300) =>
       fetchJson<VelocityMetrics>(`/api/v1/velocity/ip/${ip}?window=${windowSeconds}`),
     getDeviceVelocity: (fingerprint: string, windowSeconds = 300) =>

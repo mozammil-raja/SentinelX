@@ -1,5 +1,6 @@
 package com.sentinelx.backend.dto;
 
+import com.sentinelx.backend.rule.RuleResult;
 import lombok.*;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -50,6 +51,11 @@ public class DecisionResponse {
      * List of human-readable rule names or IDs that fired during evaluation.
      */
     private List<String> firedRules;
+
+    /**
+     * Structured per-rule evaluation outcomes for every active rule.
+     */
+    private List<RuleResult> ruleResults;
 
     /**
      * Evaluation latency in milliseconds.

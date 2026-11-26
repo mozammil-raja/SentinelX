@@ -233,6 +233,7 @@ public class RiskService {
                     .finalScore(report.getFinalScore())
                     .decision(report.getDecision())
                     .firedRules(report.getFiredRuleExplanations())
+                    .ruleResults(report.getAllRuleResults())
                     .evaluationTimeMs(totalLatency)
                     .timestamp(OffsetDateTime.now(ZoneOffset.UTC))
                     .build();

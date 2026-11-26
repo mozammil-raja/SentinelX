@@ -28,6 +28,11 @@ public class EvaluationReport {
     private final List<RuleResult> firedRuleResults;
 
     /**
+     * Detailed outcomes of every active rule evaluated (both triggered and cleared).
+     */
+    private final List<RuleResult> allRuleResults;
+
+    /**
      * Formatted string list of explanations for all fired rules.
      */
     private final List<String> firedRuleExplanations;

@@ -3,6 +3,7 @@ package com.sentinelx.backend.repository;
 import com.sentinelx.backend.entity.Transaction;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -74,4 +75,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, String
      */
     @Query("SELECT t FROM Transaction t LEFT JOIN FETCH t.user LEFT JOIN FETCH t.device WHERE t.id = :id")
     Optional<Transaction> findByIdWithDetails(@Param("id") String id);
+
+    /**
+     * Deletes simulated (non-historical) transactions for a user during simulation reset.
+     */
+    @Modifying
+    @Query("DELETE FROM Transaction t WHERE t.user.id = :userId AND t.id NOT LIKE 'txn_hist_%'")
+    void deleteSimulatedByUserId(@Param("userId") String userId);
 }

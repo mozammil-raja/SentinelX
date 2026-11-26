@@ -5,9 +5,10 @@ import { api, VelocityMetrics } from '@/lib/api';
 import { Gauge, Search, CheckCircle2, AlertCircle, RotateCw } from 'lucide-react';
 
 export function VelocityTelemetryCard() {
-  const [lookupUser, setLookupUser] = useState('usr_sarah');
+  const [lookupUser, setLookupUser] = useState('usr_alice');
   const [metrics, setMetrics] = useState<VelocityMetrics | null>(null);
   const [health, setHealth] = useState<{ status: string; engine: string; isRedisAvailable: boolean } | null>(null);
+  const [ruleLimit, setRuleLimit] = useState<{ limit: number; window: number }>({ limit: 5, window: 300 });
   const [loading, setLoading] = useState(false);
 
   const handleLookup = useCallback(async (userIdToLookup?: string) => {
@@ -32,13 +33,21 @@ export function VelocityTelemetryCard() {
     let ignore = false;
     async function init() {
       try {
-        const [healthRes, metricsRes] = await Promise.all([
+        const [healthRes, metricsRes, rulesRes] = await Promise.all([
           api.velocity.getHealth().catch(() => null),
-          api.velocity.getUserVelocity('usr_sarah', 300).catch(() => null),
+          api.velocity.getUserVelocity('usr_alice', 300).catch(() => null),
+          api.rules.getAll().catch(() => null),
         ]);
         if (!ignore) {
           if (healthRes) setHealth(healthRes);
           if (metricsRes) setMetrics(metricsRes);
+          const r1 = rulesRes?.find((r) => r.id === 'RULE_01');
+          if (r1?.conditionJson) {
+            try {
+              const parsed = JSON.parse(r1.conditionJson);
+              setRuleLimit({ limit: parsed.limit ?? 5, window: parsed.window ?? 300 });
+            } catch { /* ignore */ }
+          }
         }
       } catch (err: unknown) {
         if (!ignore) {
@@ -114,7 +123,7 @@ export function VelocityTelemetryCard() {
             <div className="text-2xl font-bold font-mono text-purple-400">
               {metrics.userVelocityCount ?? 0}
             </div>
-            <span className="text-[10px] text-neutral-400 block">LIMIT: 5 TXNS / 300S</span>
+            <span className="text-[10px] text-neutral-400 block">LIMIT: {ruleLimit.limit} TXNS / {ruleLimit.window}S</span>
           </div>
 
           <div className="p-4 rounded-xl bg-[#151922] border border-slate-800/80 space-y-1.5 shadow-sm">

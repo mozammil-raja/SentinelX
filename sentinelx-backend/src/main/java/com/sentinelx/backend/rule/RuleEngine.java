@@ -87,6 +87,7 @@ public class RuleEngine {
 
         int score = 0;
         List<RuleResult> firedRuleResults = new ArrayList<>();
+        List<RuleResult> allRuleResults = new ArrayList<>();
         List<String> firedExplanations = new ArrayList<>();
 
         // 1. Fetch active dynamic rules from in-memory cache
@@ -97,6 +98,7 @@ public class RuleEngine {
             RiskRule strategy = strategyMap.get(ruleConfig.getId());
             if (strategy != null) {
                 RuleResult result = strategy.evaluate(request, user, device, ruleConfig, context);
+                allRuleResults.add(result);
                 if (result.triggered()) {
                     score += result.scoreContribution();
                     firedRuleResults.add(result);
@@ -128,6 +130,7 @@ public class RuleEngine {
                 .finalScore(finalScore)
                 .decision(decisionVerdict)
                 .firedRuleResults(firedRuleResults)
+                .allRuleResults(allRuleResults)
                 .firedRuleExplanations(firedExplanations)
                 .evaluationTimeMs(evaluationLatency)
                 .build();

@@ -57,6 +57,22 @@ public class VelocityController {
     }
 
     /**
+     * Resets the sliding window velocity and volume counters in Redis for a specific user.
+     *
+     * @param userId Unique customer identifier
+     * @return Confirmation status map
+     */
+    @DeleteMapping("/user/{userId}")
+    public ResponseEntity<Map<String, Object>> resetUserVelocity(@PathVariable String userId) {
+        velocityService.resetUserVelocity(userId);
+        return ResponseEntity.ok(Map.of(
+                "message", "Velocity window reset successfully for user " + userId,
+                "userId", userId,
+                "timestamp", OffsetDateTime.now().toString()
+        ));
+    }
+
+    /**
      * Inspects the sliding window transaction frequency for a client IP address.
      *
      * @param ipAddress Client IPv4 or IPv6 address

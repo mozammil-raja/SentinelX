@@ -2,6 +2,9 @@ package com.sentinelx.backend.repository;
 
 import com.sentinelx.backend.entity.Device;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -29,4 +32,11 @@ public interface DeviceRepository extends JpaRepository<Device, String> {
      * @return Optional containing the Device profile if recognized
      */
     Optional<Device> findByUserIdAndFingerprint(String userId, String fingerprint);
+
+    /**
+     * Deletes untrusted devices auto-provisioned during simulation for a user.
+     */
+    @Modifying
+    @Query("DELETE FROM Device d WHERE d.user.id = :userId AND d.isTrusted = false")
+    void deleteSimulatedUntrustedByUserId(@Param("userId") String userId);
 }

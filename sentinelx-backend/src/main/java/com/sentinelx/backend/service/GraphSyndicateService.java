@@ -54,6 +54,14 @@ public class GraphSyndicateService {
     }
 
     /**
+     * Restores the in-memory syndicate graph back to its clean seeded state,
+     * removing any temporary links recorded during interactive simulation runs.
+     */
+    public synchronized void resetToSeedState() {
+        initSeedGraph();
+    }
+
+    /**
      * Records transaction entity associations and constructs bi-directional graph links.
      */
     public void recordConnection(String userId, String deviceFingerprint, String ipAddress, String cardBin, boolean isBlocked) {

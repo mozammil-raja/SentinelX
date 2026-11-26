@@ -233,7 +233,7 @@ export function BacktestStudio() {
                 <textarea
                   value={customJson}
                   onChange={(e) => setCustomJson(e.target.value)}
-                  placeholder={`[\n  {\n    "userId": "usr_sarah",\n    "amount": 12000.00,\n    "currency": "USD",\n    "merchantId": "mer_luxury"\n  }\n]`}
+                  placeholder={`[\n  {\n    "userId": "usr_sarah",\n    "amount": 12000.00,\n    "currency": "USD",\n    "merchantId": "mer_luxury_watches"\n  }\n]`}
                   rows={4}
                   className="w-full bg-[#151922] text-xs p-2.5 rounded-lg border border-slate-700 text-white placeholder-neutral-500 focus:outline-none focus:border-purple-500 font-mono"
                 />

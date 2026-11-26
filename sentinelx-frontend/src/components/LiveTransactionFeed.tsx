@@ -207,9 +207,8 @@ export function LiveTransactionFeed({ decisions, status, lastPing, onClear }: Pr
                           )}
                         </button>
                       ) : (
-                        <span className="text-[10px] text-neutral-400 italic flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                          SHADOW_SCORING...
+                        <span className="text-[10px] text-neutral-500 font-mono">
+                          ASYNC_QUEUED
                         </span>
                       )}
                     </td>
@@ -231,7 +230,7 @@ export function LiveTransactionFeed({ decisions, status, lastPing, onClear }: Pr
                         <div className="mt-2 p-3 rounded-lg bg-[#1c222e] border border-cyan-500/40 text-[11px] font-sans text-neutral-200 space-y-1 shadow-lg">
                           <div className="font-mono text-[10px] text-cyan-300 font-bold flex items-center gap-1">
                             <Bot className="w-3.5 h-3.5 text-cyan-400" />
-                            <span>GEMINI_AI_REASONING (CONFIDENCE: {((d.geminiConfidence || 0.9) * 100).toFixed(0)}%):</span>
+                            <span>GEMINI_AI_REASONING (CONFIDENCE: {((d.geminiConfidence ?? 0) * 100).toFixed(0)}%):</span>
                           </div>
                           <p className="text-neutral-200 text-[11px] leading-relaxed">{d.geminiReasoning}</p>
                         </div>

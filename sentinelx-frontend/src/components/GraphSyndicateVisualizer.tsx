@@ -17,9 +17,10 @@ import {
 } from 'lucide-react';
 
 export function GraphSyndicateVisualizer() {
-  const [userId, setUserId] = useState('usr_sarah');
+  const [userId, setUserId] = useState('usr_viktor');
   const [network, setNetwork] = useState<GraphNetworkResponse | null>(null);
   const [summary, setSummary] = useState<Record<string, number> | null>(null);
+  const [rule07Weight, setRule07Weight] = useState<number>(75);
   const [loading, setLoading] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'USER' | 'DEVICE' | 'IP' | 'CARD'>('ALL');
 
@@ -44,11 +45,14 @@ export function GraphSyndicateVisualizer() {
     Promise.all([
       api.graph.getNetwork(userId),
       api.graph.getSummary(),
+      api.rules.getAll().catch(() => null),
     ])
-      .then(([netData, sumData]) => {
+      .then(([netData, sumData, rulesData]) => {
         if (isMounted) {
           setNetwork(netData);
           setSummary(sumData);
+          const r7 = rulesData?.find((r) => r.id === 'RULE_07');
+          if (r7) setRule07Weight(r7.weight);
         }
       })
       .catch((err: unknown) => {
@@ -152,7 +156,7 @@ export function GraphSyndicateVisualizer() {
         <div className="p-4 rounded-xl bg-rose-950/30 border border-rose-500/50 space-y-2.5 text-xs shadow-sm">
           <div className="flex items-center gap-2 text-rose-400 font-bold">
             <AlertTriangle className="w-4 h-4 text-rose-400" />
-            <span>[CRITICAL_SYNDICATE_DETECTED] RULE_07 TRIGGERED (+75 PTS)</span>
+            <span>[CRITICAL_SYNDICATE_DETECTED] RULE_07 TRIGGERED (+{rule07Weight} PTS)</span>
           </div>
           <p className="text-neutral-300 font-sans leading-relaxed">
             {network.syndicateAnalysis.explanation}
@@ -192,16 +196,19 @@ export function GraphSyndicateVisualizer() {
           ) : (
             <svg className="w-full h-full" viewBox="0 0 800 280">
               {/* Render Edge Links */}
-              {network?.edges.map((edge, idx) => {
-                const srcIdx = network.nodes.findIndex((n) => n.id === edge.source);
-                const tgtIdx = network.nodes.findIndex((n) => n.id === edge.target);
-                const total = Math.max(network.nodes.length, 1);
+              {network?.edges
+                .filter((edge) => filteredNodes.some((n) => n.id === edge.source) && filteredNodes.some((n) => n.id === edge.target))
+                .map((edge, idx) => {
+                const srcIdx = filteredNodes.findIndex((n) => n.id === edge.source);
+                const tgtIdx = filteredNodes.findIndex((n) => n.id === edge.target);
+                const total = Math.max(filteredNodes.length, 1);
 
                 const srcAngle = ((srcIdx >= 0 ? srcIdx : 0) / total) * Math.PI * 2;
                 const tgtAngle = ((tgtIdx >= 0 ? tgtIdx : 1) / total) * Math.PI * 2;
 
-                const isSrcCenter = edge.source.includes(userId);
-                const isTgtCenter = edge.target.includes(userId);
+                const focusNodeId = `usr:${userId}`;
+                const isSrcCenter = edge.source === focusNodeId;
+                const isTgtCenter = edge.target === focusNodeId;
 
                 const x1 = isSrcCenter ? 400 : 400 + Math.cos(srcAngle) * 220;
                 const y1 = isSrcCenter ? 140 : 140 + Math.sin(srcAngle) * 95;
@@ -240,10 +247,10 @@ export function GraphSyndicateVisualizer() {
               })}
 
               {/* Render Node Circles */}
-              {network?.nodes.map((node, idx) => {
-                const total = Math.max(network.nodes.length, 1);
+              {filteredNodes.map((node, idx) => {
+                const total = Math.max(filteredNodes.length, 1);
                 const angle = (idx / total) * Math.PI * 2;
-                const isCenter = node.id.includes(userId);
+                const isCenter = node.id === `usr:${userId}`;
 
                 const cx = isCenter ? 400 : 400 + Math.cos(angle) * 220;
                 const cy = isCenter ? 140 : 140 + Math.sin(angle) * 95;

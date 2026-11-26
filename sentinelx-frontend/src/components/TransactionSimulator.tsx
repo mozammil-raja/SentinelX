@@ -1,7 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { api, TransactionRequest, DecisionResponse, CustomerProfile, TransactionResponse } from '@/lib/api';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import {
+  api,
+  TransactionRequest,
+  DecisionResponse,
+  CustomerProfile,
+  TransactionResponse,
+  Rule,
+  GraphNetworkResponse,
+} from '@/lib/api';
 import { FALLBACK_CUSTOMERS, MERCHANTS } from '@/lib/mockData';
 import {
   Sparkles,
@@ -21,34 +29,43 @@ import {
   ChevronDown,
   ChevronUp,
   Network,
-  Clock,
-  Laptop,
   Smartphone,
   AlertTriangle,
   ArrowRight,
+  Trash2,
 } from 'lucide-react';
 
-let burstCounter = 1000;
+function formatCurrency(amount: number, currency: string = 'USD'): string {
+  const symbol = currency === 'INR' ? '₹' : currency === 'GBP' ? '£' : currency === 'EUR' ? '€' : '$';
+  return `${symbol} ${Number(amount || 0).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
 
 export function TransactionSimulator() {
   const [customers, setCustomers] = useState<CustomerProfile[]>(FALLBACK_CUSTOMERS);
+  const [rulesCatalog, setRulesCatalog] = useState<Rule[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('usr_alice');
   const [loading, setLoading] = useState(false);
   const [bursting, setBursting] = useState(false);
   const [burstProgress, setBurstProgress] = useState<{ current: number; total: number; fired: boolean } | null>(null);
   const [lastResult, setLastResult] = useState<DecisionResponse | null>(null);
+  const [syndicateGraph, setSyndicateGraph] = useState<GraphNetworkResponse | null>(null);
   const [recentTransactions, setRecentTransactions] = useState<TransactionResponse[]>([]);
   const [showHistoryDrawer, setShowHistoryDrawer] = useState<boolean>(false);
+  const [resetToast, setResetToast] = useState<string | null>(null);
+  const [simError, setSimError] = useState<string | null>(null);
 
   // Simulation Controls & Engine Mode
-  const [activeScenario, setActiveScenario] = useState<'CLEAN' | 'ATO' | 'VELOCITY' | 'WATCHLIST' | 'COLLUSION' | 'CUSTOM'>('CLEAN');
-  const [inspectorMode, setInspectorMode] = useState<boolean>(false);
-  const [inspectorStep, setInspectorStep] = useState<number>(0);
+  const [activeScenario, setActiveScenario] = useState<
+    'CLEAN' | 'ATO' | 'VELOCITY' | 'WATCHLIST' | 'COLLUSION' | 'CUSTOM'
+  >('CLEAN');
   const [enableIdempotency, setEnableIdempotency] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState('idemp_demo_001');
 
-  // Form State
-  const [amount, setAmount] = useState<number>(18.50);
+  // Transaction Payload State (Editable via Presets or Custom Controls)
+  const [amount, setAmount] = useState<number>(25.0);
   const [selectedMerchantId, setSelectedMerchantId] = useState<string>('mer_coffee_beans');
   const [isVelocityBurst, setIsVelocityBurst] = useState<boolean>(false);
   const [isNewDevice, setIsNewDevice] = useState<boolean>(false);
@@ -56,23 +73,30 @@ export function TransactionSimulator() {
   const [isBlacklistedMerchant, setIsBlacklistedMerchant] = useState<boolean>(false);
   const [isCollusionDevice, setIsCollusionDevice] = useState<boolean>(false);
 
-  // Interactive Sensitivity Playground State
-  const [sensitivityAmount, setSensitivityAmount] = useState<number>(18.50);
+  const [displayedScore, setDisplayedScore] = useState(0);
+  const displayedScoreRef = useRef(0);
+  const [copiedDocket, setCopiedDocket] = useState(false);
 
-  // Fetch live customer profiles on mount
+  // Fetch live customer profiles and active rules catalog on mount
   useEffect(() => {
     let isMounted = true;
-    async function loadCustomers() {
+    async function loadInitialData() {
       try {
-        const data = await api.customers.getAll();
-        if (isMounted && data && data.length > 0) {
-          setCustomers(data);
+        const [customerData, rulesData] = await Promise.all([
+          api.customers.getAll().catch(() => null),
+          api.rules.getAll().catch(() => null),
+        ]);
+        if (isMounted && customerData && customerData.length > 0) {
+          setCustomers(customerData);
+        }
+        if (isMounted && rulesData) {
+          setRulesCatalog(rulesData);
         }
       } catch {
-        // Use fallback profiles
+        // Keep fallback customers if offline
       }
     }
-    loadCustomers();
+    loadInitialData();
     return () => {
       isMounted = false;
     };
@@ -82,43 +106,53 @@ export function TransactionSimulator() {
     return customers.find((c) => c.id === selectedCustomerId) || customers[0] || FALLBACK_CUSTOMERS[0];
   }, [customers, selectedCustomerId]);
 
-  // Fetch recent legitimate transactions for selected persona
+  const loadCustomerHistory = useCallback(async (userId: string) => {
+    try {
+      const data = await api.transactions.getRecent(0, 3, userId);
+      setRecentTransactions(data || []);
+    } catch {
+      setRecentTransactions([]);
+    }
+  }, []);
+
   useEffect(() => {
-    let isMounted = true;
-    async function loadHistory() {
+    loadCustomerHistory(selectedCustomerId);
+  }, [selectedCustomerId, loadCustomerHistory]);
+
+  // Reset persona simulation state (Redis velocity, Graph links, non-seeded simulated DB records)
+  const resetPersonaState = useCallback(
+    async (userId: string, showToast = true) => {
       try {
-        const data = await api.transactions.getRecent(0, 3, selectedCustomerId);
-        if (isMounted && data) {
-          setRecentTransactions(data);
+        await api.customers.resetSimulation(userId);
+        await loadCustomerHistory(userId);
+        if (showToast) {
+          setResetToast('Persona Baseline Reset');
+          setTimeout(() => setResetToast(null), 2000);
         }
       } catch {
-        if (isMounted) setRecentTransactions([]);
+        try {
+          await api.velocity.resetUserVelocity(userId);
+          if (showToast) {
+            setResetToast('Redis Velocity Flushed');
+            setTimeout(() => setResetToast(null), 2000);
+          }
+        } catch {
+          // Ignore if backend offline
+        }
       }
-    }
-    loadHistory();
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedCustomerId]);
+    },
+    [loadCustomerHistory]
+  );
 
-  const currencySymbol = useMemo(() => {
-    if (currentCustomer.currency === 'USD') return '$';
-    if (currentCustomer.currency === 'INR') return '₹';
-    if (currentCustomer.currency === 'GBP') return '£';
-    if (currentCustomer.currency === 'EUR') return '€';
-    return '$';
-  }, [currentCustomer.currency]);
-
-  // Initialize defaults when selecting customer
+  // Select persona and reset to clean baseline
   const handleSelectCustomer = (customerId: string) => {
     setSelectedCustomerId(customerId);
     const target = customers.find((c) => c.id === customerId) || FALLBACK_CUSTOMERS[0];
     const defaultAmount = target.typicalSpendMin
       ? Number(((target.typicalSpendMin + (target.typicalSpendMax || 50)) / 2).toFixed(2))
-      : 25.00;
+      : 25.0;
 
     setAmount(defaultAmount);
-    setSensitivityAmount(defaultAmount);
     setActiveScenario('CLEAN');
     setIsVelocityBurst(false);
     setIsNewDevice(false);
@@ -127,22 +161,33 @@ export function TransactionSimulator() {
     setIsCollusionDevice(false);
     setSelectedMerchantId(target.currency === 'INR' ? 'mer_indigo_airlines' : 'mer_coffee_beans');
     setLastResult(null);
+    setSyndicateGraph(null);
     setBurstProgress(null);
+    setSimError(null);
+
+    // Flush Redis sliding window on persona switch while preserving stored DB transactions for the Ledger
+    api.velocity.resetUserVelocity(customerId).catch(() => {});
   };
 
-  // Scenario Presets Trigger
-  const handleApplyScenario = (preset: 'CLEAN' | 'ATO' | 'VELOCITY' | 'WATCHLIST' | 'COLLUSION') => {
+  // Apply 1-click narrative scenario preset
+  const handleApplyScenario = async (preset: 'CLEAN' | 'ATO' | 'VELOCITY' | 'WATCHLIST' | 'COLLUSION') => {
     setActiveScenario(preset);
     setLastResult(null);
+    setSyndicateGraph(null);
     setBurstProgress(null);
+    setSimError(null);
 
     const minSpend = currentCustomer.typicalSpendMin || 10;
     const maxSpend = currentCustomer.typicalSpendMax || 50;
     const baselineMid = Number(((minSpend + maxSpend) / 2).toFixed(2));
 
+    // Flush Redis sliding window on non-velocity presets while preserving stored DB transactions for the Ledger
+    if (preset !== 'VELOCITY') {
+      await api.velocity.resetUserVelocity(currentCustomer.id).catch(() => {});
+    }
+
     if (preset === 'CLEAN') {
       setAmount(baselineMid);
-      setSensitivityAmount(baselineMid);
       setIsVelocityBurst(false);
       setIsNewDevice(false);
       setIsLocationHop(false);
@@ -150,10 +195,7 @@ export function TransactionSimulator() {
       setIsCollusionDevice(false);
       setSelectedMerchantId(currentCustomer.currency === 'INR' ? 'mer_indigo_airlines' : 'mer_coffee_beans');
     } else if (preset === 'ATO') {
-      // 8.5x baseline spend + new untrusted hardware + foreign proxy IP
-      const elevatedAmount = Number((maxSpend * 8.5).toFixed(2));
-      setAmount(elevatedAmount);
-      setSensitivityAmount(elevatedAmount);
+      setAmount(Number((maxSpend * 7.0).toFixed(2)));
       setIsVelocityBurst(false);
       setIsNewDevice(true);
       setIsLocationHop(true);
@@ -161,9 +203,7 @@ export function TransactionSimulator() {
       setIsCollusionDevice(false);
       setSelectedMerchantId('mer_luxury_watches');
     } else if (preset === 'VELOCITY') {
-      // Rapid automated burst
       setAmount(baselineMid);
-      setSensitivityAmount(baselineMid);
       setIsVelocityBurst(true);
       setIsNewDevice(false);
       setIsLocationHop(false);
@@ -171,9 +211,7 @@ export function TransactionSimulator() {
       setIsCollusionDevice(false);
       setSelectedMerchantId('mer_electronics_store');
     } else if (preset === 'WATCHLIST') {
-      // Sanctioned vendor
-      setAmount(Number((maxSpend * 1.5).toFixed(2)));
-      setSensitivityAmount(Number((maxSpend * 1.5).toFixed(2)));
+      setAmount(baselineMid);
       setIsVelocityBurst(false);
       setIsNewDevice(false);
       setIsLocationHop(false);
@@ -181,9 +219,7 @@ export function TransactionSimulator() {
       setIsCollusionDevice(false);
       setSelectedMerchantId('mer_black_1');
     } else if (preset === 'COLLUSION') {
-      // Shared hardware linked to banned fraud ring
       setAmount(baselineMid);
-      setSensitivityAmount(baselineMid);
       setIsVelocityBurst(false);
       setIsNewDevice(false);
       setIsLocationHop(false);
@@ -193,14 +229,11 @@ export function TransactionSimulator() {
     }
   };
 
-  const regenerateIdempotencyKey = () => {
-    setIdempotencyKey(`idemp_${Math.random().toString(36).substring(2, 8)}`);
-  };
-
-  // Run Simulation Pipeline
+  // Execute real backend transaction evaluation
   const handleRunSimulation = useCallback(async () => {
     setLoading(true);
-    setInspectorStep(0);
+    setSimError(null);
+    setSyndicateGraph(null);
 
     const currency = currentCustomer.currency || 'USD';
     let deviceFp = currentCustomer.primaryDeviceFingerprint || `${currentCustomer.id}_trusted_device`;
@@ -210,48 +243,42 @@ export function TransactionSimulator() {
       deviceFp = 'fp_untrusted_linux_vm_99';
     }
 
-    const ip = isLocationHop ? '185.220.101.5' : (currentCustomer.usualIp || '198.51.100.15');
+    const ip = isLocationHop ? '185.220.101.5' : currentCustomer.usualIp || '198.51.100.15';
     const merchant = isBlacklistedMerchant ? 'mer_black_1' : selectedMerchantId;
 
     try {
-      if (inspectorMode) {
-        // Step-by-Step educational slow-motion animation
-        setInspectorStep(1); // Lock & Idempotency
-        await new Promise((r) => setTimeout(r, 220));
-        setInspectorStep(2); // Velocity Check
-        await new Promise((r) => setTimeout(r, 220));
-        setInspectorStep(3); // Device & IP Trust
-        await new Promise((r) => setTimeout(r, 220));
-        setInspectorStep(4); // 2-Hop BFS Graph Traversal
-        await new Promise((r) => setTimeout(r, 220));
-        setInspectorStep(5); // Score Aggregation
-      }
+      // Refresh live rules catalog so UI stays synced with Tab 2 (Rules Manager)
+      api.rules.getAll().then((r) => r && setRulesCatalog(r)).catch(() => {});
+
+      let latest: DecisionResponse | null = null;
 
       if (isVelocityBurst) {
         setBursting(true);
-        burstCounter += 1;
-        const burstUser = `${currentCustomer.id}_burst_${burstCounter}`;
-        const burstEmail = `burst_${burstCounter}_${currentCustomer.email}`;
+        // Flush user's Redis window first so the 6-request burst tests the exact selected persona cleanly
+        await api.velocity.resetUserVelocity(currentCustomer.id).catch(() => {});
 
-        let latest: DecisionResponse | null = null;
         const totalCalls = 6;
+        let burstFired = false;
         for (let i = 1; i <= totalCalls; i++) {
-          setBurstProgress({ current: i, total: totalCalls, fired: i >= 6 });
+          setBurstProgress({ current: i, total: totalCalls, fired: burstFired });
           const payload: TransactionRequest = {
-            userId: burstUser,
-            email: burstEmail,
-            amount: Number((amount / 10 + i * 2.5).toFixed(2)),
+            userId: currentCustomer.id,
+            email: currentCustomer.email,
+            amount: Number(amount),
             currency,
             merchantId: merchant,
             ipAddress: ip,
             deviceFingerprint: deviceFp,
           };
           latest = await api.transactions.evaluate(payload);
-          await new Promise((r) => setTimeout(r, 120));
-        }
-        if (latest) {
-          setLastResult(latest);
-          setSensitivityAmount(amount);
+          if (
+            latest?.ruleResults?.some((r) => r.ruleId === 'RULE_01' && r.triggered) ||
+            latest?.firedRules?.some((r) => r.toUpperCase().includes('RULE_01'))
+          ) {
+            burstFired = true;
+          }
+          setBurstProgress({ current: i, total: totalCalls, fired: burstFired });
+          await new Promise((r) => setTimeout(r, 80));
         }
       } else {
         const payload: TransactionRequest = {
@@ -264,21 +291,32 @@ export function TransactionSimulator() {
           deviceFingerprint: deviceFp,
         };
 
-        const res = await api.transactions.evaluate(
-          payload,
-          enableIdempotency ? idempotencyKey : undefined
-        );
-        setLastResult(res);
-        setSensitivityAmount(amount);
+        latest = await api.transactions.evaluate(payload, enableIdempotency ? idempotencyKey : undefined);
+      }
+
+      if (latest) {
+        setLastResult(latest);
+        loadCustomerHistory(currentCustomer.id);
+        api.customers.getAll().then((c) => c && c.length > 0 && setCustomers(c)).catch(() => {});
+
+        // If RULE_07 actually triggered, fetch real 2-hop BFS graph evidence from GraphSyndicateService
+        const rule07Fired =
+          latest.ruleResults?.some((r) => r.ruleId === 'RULE_07' && r.triggered) ||
+          latest.firedRules?.some((r) => r.toUpperCase().includes('RULE_07'));
+        if (rule07Fired) {
+          api.graph
+            .getNetwork(currentCustomer.id)
+            .then((graph) => setSyndicateGraph(graph))
+            .catch(() => {});
+        }
       }
     } catch (err: unknown) {
       console.error('Simulation error:', err);
+      const msg = err instanceof Error ? err.message : 'Unknown simulation error';
+      setSimError(`Simulation failed: ${msg}`);
     } finally {
       setLoading(false);
       setBursting(false);
-      if (inspectorMode) {
-        setTimeout(() => setInspectorStep(0), 1200);
-      }
     }
   }, [
     currentCustomer,
@@ -289,9 +327,9 @@ export function TransactionSimulator() {
     isBlacklistedMerchant,
     isCollusionDevice,
     isVelocityBurst,
-    inspectorMode,
     enableIdempotency,
     idempotencyKey,
+    loadCustomerHistory,
   ]);
 
   // Global Keyboard Shortcut: Ctrl+Enter or Cmd+Enter
@@ -306,146 +344,96 @@ export function TransactionSimulator() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleRunSimulation]);
 
-  // Animated score rollup effect
-  const [displayedScore, setDisplayedScore] = useState(0);
-  const [copiedDocket, setCopiedDocket] = useState(false);
+  // Build rule breakdown strictly from backend response (no hardcoded weights or guessed triggers)
+  const ruleEvaluationMatrix = useMemo(() => {
+    if (!lastResult) return [];
 
+    if (lastResult.ruleResults && lastResult.ruleResults.length > 0) {
+      return [...lastResult.ruleResults].sort((a, b) => a.ruleId.localeCompare(b.ruleId));
+    }
+
+    // Backwards-compatible fallback if ruleResults is omitted
+    const fired = lastResult.firedRules || [];
+    return rulesCatalog
+      .filter((r) => r.isActive)
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map((r) => {
+        const match = fired.find((f) => f.toUpperCase().includes(r.id));
+        return {
+          ruleId: r.id,
+          ruleName: r.name,
+          triggered: Boolean(match),
+          scoreContribution: match ? r.weight : 0,
+          reason: match || 'Condition not met',
+        };
+      });
+  }, [lastResult, rulesCatalog]);
+
+  // Raw score sum & authoritative backend verdict
+  const rawScoreSum = useMemo(() => {
+    return ruleEvaluationMatrix.reduce((acc, r) => acc + (r.triggered ? r.scoreContribution : 0), 0);
+  }, [ruleEvaluationMatrix]);
+
+  const engineScore = lastResult?.finalScore ?? 0;
+  const engineVerdict = lastResult?.decision ?? 'STANDBY';
+  const maxSpend = currentCustomer.typicalSpendMax || 50;
+
+  // Animated gauge rollup without stale closures
   useEffect(() => {
-    if (!lastResult) return;
-    const target = lastResult.finalScore;
-    const start = 0;
-    const duration = 400;
+    if (!lastResult) {
+      displayedScoreRef.current = 0;
+      setDisplayedScore(0);
+      return;
+    }
+
+    const target = engineScore;
+    const start = displayedScoreRef.current;
+    const duration = 250;
     const startTime = performance.now();
+    let rafId = 0;
 
     const animate = (currentTime: number) => {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
       const easeOut = 1 - Math.pow(1 - progress, 3);
       const current = Math.round(start + (target - start) * easeOut);
+      displayedScoreRef.current = current;
       setDisplayedScore(current);
 
       if (progress < 1) {
-        requestAnimationFrame(animate);
+        rafId = requestAnimationFrame(animate);
       }
     };
 
-    requestAnimationFrame(animate);
-  }, [lastResult]);
+    rafId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(rafId);
+  }, [engineScore, lastResult]);
 
-  // Check which of the 7 rules triggered
-  const ruleEvaluationMatrix = useMemo(() => {
-    if (!lastResult) return [];
-
-    const fired = lastResult.firedRules || [];
-    const hasRule = (id: string) => fired.some((r) => r.toUpperCase().includes(id));
-    const findReason = (id: string) => fired.find((r) => r.toUpperCase().includes(id)) || '';
-
-    const maxSpend = currentCustomer.typicalSpendMax || 50;
-    const spendMultiplier = (amount / maxSpend).toFixed(1);
-
-    return [
-      {
-        id: 'RULE_01',
-        name: 'High Velocity (5m)',
-        defaultWeight: 40,
-        triggered: hasRule('RULE_01'),
-        reason: hasRule('RULE_01')
-          ? findReason('RULE_01')
-          : 'Sliding window count clean (within 5 txns / 300s threshold)',
-        metric: isVelocityBurst ? '6 txns / 300s (BREACH)' : '1 txn / 300s (OK)',
-      },
-      {
-        id: 'RULE_02',
-        name: 'New Device Fingerprint',
-        defaultWeight: 25,
-        triggered: hasRule('RULE_02'),
-        reason: hasRule('RULE_02')
-          ? findReason('RULE_02')
-          : `Recognized trusted hardware fingerprint (${currentCustomer.primaryDevice || 'Registered Device'})`,
-        metric: isNewDevice ? 'Unrecognized SHA-256' : 'Trusted Registry Verified',
-      },
-      {
-        id: 'RULE_03',
-        name: 'High-Value Spend Deviation',
-        defaultWeight: 50,
-        triggered: hasRule('RULE_03'),
-        reason: hasRule('RULE_03')
-          ? findReason('RULE_03')
-          : `Spend ${currencySymbol}${amount} conforms to customer typical baseline (${currencySymbol}${currentCustomer.typicalSpendMin}–${currencySymbol}${maxSpend})`,
-        metric: hasRule('RULE_03') ? `${spendMultiplier}× typical limit` : 'Within limits',
-      },
-      {
-        id: 'RULE_04',
-        name: 'Rapid IP Change (Geo Hop)',
-        defaultWeight: 60,
-        triggered: hasRule('RULE_04'),
-        reason: hasRule('RULE_04')
-          ? findReason('RULE_04')
-          : `Originating IP conforms to historical home subnet (${currentCustomer.usualLocation?.split(',')[0] || 'Local'})`,
-        metric: isLocationHop ? 'Foreign Proxy (185.220.101.5)' : 'Home Subnet Verified',
-      },
-      {
-        id: 'RULE_05',
-        name: 'Blacklisted Merchant Watchlist',
-        defaultWeight: 80,
-        triggered: hasRule('RULE_05'),
-        reason: hasRule('RULE_05')
-          ? findReason('RULE_05')
-          : 'Merchant verified in good standing on global directory',
-        metric: isBlacklistedMerchant ? 'DarkMixer Escrow (FLAGGED)' : 'Clean Merchant',
-      },
-      {
-        id: 'RULE_06',
-        name: 'Customer Risk Tiering',
-        defaultWeight: 30,
-        triggered: hasRule('RULE_06'),
-        reason: hasRule('RULE_06')
-          ? findReason('RULE_06')
-          : `Customer profile is in ${currentCustomer.riskSegment} risk tier (no baseline penalty applied)`,
-        metric: `${currentCustomer.riskSegment} Tier`,
-      },
-      {
-        id: 'RULE_07',
-        name: 'Syndicate Fraud Ring (2-Hop BFS)',
-        defaultWeight: 75,
-        triggered: hasRule('RULE_07'),
-        reason: hasRule('RULE_07')
-          ? findReason('RULE_07')
-          : '2-hop BFS graph traversal found zero links to banned fraud rings',
-        metric: isCollusionDevice ? 'Shared Device -> Banned Kingpin' : 'Isolated Clean Node',
-      },
-    ];
-  }, [lastResult, currentCustomer, amount, currencySymbol, isVelocityBurst, isNewDevice, isLocationHop, isBlacklistedMerchant, isCollusionDevice]);
-
-  // Export formatted compliance audit report
+  // Export real audit report
   const handleExportDocket = () => {
     if (!lastResult) return;
     const docket = {
       docketType: 'SENTINELX_FINANCIAL_CRIME_AUDIT_DOCKET',
       generatedAt: new Date().toISOString(),
       transactionId: lastResult.transactionId,
+      decisionId: lastResult.decisionId,
       customerProfile: {
         userId: currentCustomer.id,
         name: currentCustomer.name,
         occupation: currentCustomer.occupation,
         riskTier: currentCustomer.riskSegment,
-        historicalTransactionsInDatabase: currentCustomer.historicalTxnCount || 200,
-        establishedTypicalSpend: `${currencySymbol}${currentCustomer.typicalSpendMin} – ${currencySymbol}${currentCustomer.typicalSpendMax}`,
+        historicalTransactionsInDatabase: currentCustomer.historicalTxnCount ?? 0,
+        establishedTypicalSpend: `${formatCurrency(currentCustomer.typicalSpendMin || 0, currentCustomer.currency)} – ${formatCurrency(maxSpend, currentCustomer.currency)}`,
       },
       decisionSummary: {
-        verdict: lastResult.decision,
-        finalScore: lastResult.finalScore,
+        verdict: engineVerdict,
+        finalScore: engineScore,
+        rawPointsSum: rawScoreSum,
+        wasScoreCappedAt100: rawScoreSum > 100,
         engineLatencyMs: lastResult.evaluationTimeMs,
-        slaTargetMet: lastResult.evaluationTimeMs < 50,
       },
-      ruleMatrix: ruleEvaluationMatrix.map((r) => ({
-        ruleId: r.id,
-        name: r.name,
-        triggered: r.triggered,
-        points: r.triggered ? r.defaultWeight : 0,
-        details: r.reason,
-      })),
-      aiCopilotReasoning: lastResult.geminiReasoning || 'Automated score normalized from real-time dynamic rule matrix.',
+      ruleMatrix: ruleEvaluationMatrix,
+      geminiReasoning: lastResult.geminiReasoning || null,
     };
 
     navigator.clipboard.writeText(JSON.stringify(docket, null, 2));
@@ -453,11 +441,9 @@ export function TransactionSimulator() {
     setTimeout(() => setCopiedDocket(false), 2500);
   };
 
-  const customerInitials = currentCustomer.name.split(' ').map((n) => n[0]).join('').substring(0, 2);
-
   return (
     <div className="bg-[#151922] border border-slate-800/80 rounded-xl p-5 lg:p-6 space-y-6 text-white font-sans shadow-xl">
-      {/* TOP HEADER: TITLE & ENGINE SWITCHES */}
+      {/* TOP HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 shrink-0">
@@ -470,34 +456,41 @@ export function TransactionSimulator() {
               </h2>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 font-bold flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                SPRING BOOT + REDIS LUA
+                LIVE BACKEND ENGINE
               </span>
             </div>
             <p className="text-xs text-neutral-400 font-mono mt-0.5">
-              5 Verified Personas • 1,000 Historical Database Context Records • &lt;15ms Latency SLA
+              {customers.slice(0, 5).length} Customer Personas • {rulesCatalog.filter((r) => r.isActive).length || 7} Active Rules • Real-Time Scoring
             </p>
           </div>
         </div>
 
-        {/* TOP TOGGLES: INSPECTOR MODE & IDEMPOTENCY */}
-        <div className="flex items-center gap-2 font-mono text-xs">
+        <div className="flex items-center gap-2 font-mono text-xs flex-wrap">
+          {resetToast && (
+            <span className="text-[11px] px-2.5 py-1 rounded-lg bg-emerald-950 border border-emerald-500 text-emerald-300 font-bold animate-in fade-in">
+              ✓ {resetToast}
+            </span>
+          )}
+
           <button
             type="button"
-            onClick={() => setInspectorMode(!inspectorMode)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-bold transition-all ${
-              inspectorMode
-                ? 'bg-purple-900/60 border-purple-500 text-purple-200'
-                : 'bg-[#1c222e] border-slate-700 text-neutral-400 hover:text-white'
-            }`}
-            title="Step through each stage in slow motion for educational explainability"
+            onClick={() => resetPersonaState(currentCustomer.id, true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-[#1c222e] text-neutral-300 hover:text-white hover:border-slate-500 text-[11px] font-bold transition-all"
+            title="Clear simulated transactions, untrusted devices, Redis counters, and temporary graph links for this persona"
           >
-            <Clock className="w-3.5 h-3.5" />
-            <span>INSPECTOR: {inspectorMode ? 'SLOW-MO ON' : 'FAST'}</span>
+            <Trash2 className="w-3.5 h-3.5 text-amber-400" />
+            <span>RESET PERSONA STATE</span>
           </button>
 
           <button
             type="button"
-            onClick={() => setEnableIdempotency(!enableIdempotency)}
+            onClick={() => {
+              const next = !enableIdempotency;
+              setEnableIdempotency(next);
+              if (next) {
+                setIdempotencyKey(`idemp_${crypto.randomUUID().slice(0, 8)}`);
+              }
+            }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-bold transition-all ${
               enableIdempotency
                 ? 'bg-blue-600 border-blue-500 text-white'
@@ -510,7 +503,24 @@ export function TransactionSimulator() {
         </div>
       </div>
 
-      {/* STEP 1: CHOOSE PERSONA (5 DISTINCT USER PROFILES) */}
+      {simError && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/60 text-xs text-rose-200 font-mono flex items-start gap-2"
+        >
+          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+          <div>
+            <div className="font-bold text-rose-300 uppercase text-[10px]">Simulation Error</div>
+            <div className="text-neutral-300 break-words">{simError}</div>
+            <div className="text-neutral-400 mt-0.5">
+              Ensure Spring Boot is running on http://localhost:8080 and Docker (Postgres :5433, Redis :6379) is up.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STEP 1: SELECT PERSONA */}
       <div className="space-y-3 font-mono">
         <div className="flex items-center justify-between text-xs pb-1">
           <div className="flex items-center gap-2 text-white font-bold uppercase tracking-wider">
@@ -520,19 +530,17 @@ export function TransactionSimulator() {
           <button
             type="button"
             onClick={() => setShowHistoryDrawer(!showHistoryDrawer)}
-            className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-bold"
+            className="px-3 py-1.5 rounded-lg bg-[#1c222e] border border-slate-700 hover:border-cyan-400 text-[11px] text-cyan-300 font-bold flex items-center gap-1.5 transition-all shadow-sm"
           >
             <span>{showHistoryDrawer ? 'Hide Profile Baseline' : 'Inspect Profile & Stored Txns'}</span>
             {showHistoryDrawer ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
         </div>
 
-        {/* 5 Persona Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {customers.slice(0, 5).map((c) => {
             const isSelected = c.id === selectedCustomerId;
             const cInitials = c.name.split(' ').map((n) => n[0]).join('').substring(0, 2);
-            const symbol = c.currency === 'USD' ? '$' : c.currency === 'INR' ? '₹' : c.currency === 'GBP' ? '£' : '$';
 
             return (
               <button
@@ -547,35 +555,45 @@ export function TransactionSimulator() {
               >
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
-                      c.riskSegment === 'LOW' ? 'bg-emerald-950 text-emerald-400 border border-emerald-500/50' :
-                      c.riskSegment === 'MEDIUM' ? 'bg-amber-950 text-amber-400 border border-amber-500/50' :
-                      'bg-rose-950 text-rose-400 border border-rose-500/50'
-                    }`}>
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
+                        c.riskSegment === 'LOW'
+                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-500/50'
+                          : c.riskSegment === 'MEDIUM'
+                          ? 'bg-amber-950 text-amber-400 border border-amber-500/50'
+                          : 'bg-rose-950 text-rose-400 border border-rose-500/50'
+                      }`}
+                    >
                       {cInitials}
                     </div>
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
-                      c.riskSegment === 'LOW' ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-500/40' :
-                      c.riskSegment === 'MEDIUM' ? 'bg-amber-950/80 text-amber-400 border border-amber-500/40' :
-                      'bg-rose-950/80 text-rose-400 border border-rose-500/40'
-                    }`}>
+                    <span
+                      className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                        c.riskSegment === 'LOW'
+                          ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-500/40'
+                          : c.riskSegment === 'MEDIUM'
+                          ? 'bg-amber-950/80 text-amber-400 border border-amber-500/40'
+                          : 'bg-rose-950/80 text-rose-400 border border-rose-500/40'
+                      }`}
+                    >
                       {c.riskSegment} RISK
                     </span>
                   </div>
 
                   <div className="text-xs font-bold text-white truncate">{c.name}</div>
-                  <div className="text-[10px] text-neutral-400 font-sans truncate">{c.occupation}</div>
-                  <div className="text-[10px] text-neutral-500 font-sans mt-0.5 truncate">{c.usualLocation?.split(',')[0]}</div>
+                  <div className="text-[10px] text-neutral-300 font-sans truncate">{c.occupation}</div>
+                  <div className="text-[10px] text-neutral-400 font-sans mt-0.5 truncate">{c.usualLocation?.split(',')[0]}</div>
                 </div>
 
                 <div className="mt-3 pt-2.5 border-t border-slate-800/80 space-y-1 text-[10px]">
-                  <div className="flex justify-between text-neutral-400">
-                    <span>Typical:</span>
-                    <span className="text-white font-bold">{symbol}{c.typicalSpendMin}–{symbol}{c.typicalSpendMax}</span>
+                  <div className="flex justify-between text-neutral-300">
+                    <span className="text-neutral-400">Typical:</span>
+                    <span className="text-white font-bold">
+                      {formatCurrency(c.typicalSpendMin || 5, c.currency)} – {formatCurrency(c.typicalSpendMax || 50, c.currency)}
+                    </span>
                   </div>
-                  <div className="flex justify-between text-cyan-400 font-bold">
-                    <span>Database:</span>
-                    <span>{c.historicalTxnCount || 200} Txns</span>
+                  <div className="flex justify-between text-cyan-300 font-bold">
+                    <span className="text-neutral-400">Database:</span>
+                    <span>{c.historicalTxnCount ?? 0} Stored Txns</span>
                   </div>
                 </div>
               </button>
@@ -589,9 +607,11 @@ export function TransactionSimulator() {
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <div className="flex items-center gap-2 text-xs font-bold text-cyan-300">
                 <UserCheck className="w-4 h-4 text-cyan-400" />
-                <span>CUSTOMER PROFILE BASELINE: {currentCustomer.name} ({currentCustomer.id})</span>
+                <span>
+                  CUSTOMER PROFILE BASELINE: {currentCustomer.name} ({currentCustomer.id})
+                </span>
               </div>
-              <span className="text-[10px] text-neutral-400">Verified Identity Registry</span>
+              <span className="text-[10px] text-neutral-400">PostgreSQL Profile Registry</span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
@@ -599,10 +619,10 @@ export function TransactionSimulator() {
                 <span className="text-[10px] text-neutral-400 uppercase">Trusted Device &amp; OS:</span>
                 <div className="font-bold text-white flex items-center gap-1.5">
                   <Smartphone className="w-3.5 h-3.5 text-blue-400" />
-                  <span>{currentCustomer.primaryDevice || 'iPhone'}</span>
+                  <span>{currentCustomer.primaryDevice || 'Registered Device'}</span>
                 </div>
                 <div className="text-[9px] text-neutral-500 font-mono truncate">
-                  SHA-256: {currentCustomer.primaryDeviceFingerprint}
+                  FP: {currentCustomer.primaryDeviceFingerprint}
                 </div>
               </div>
 
@@ -613,42 +633,53 @@ export function TransactionSimulator() {
                   <span>{currentCustomer.usualLocation}</span>
                 </div>
                 <div className="text-[9px] text-neutral-500 font-mono">
-                  Subnet: {currentCustomer.usualIp || '198.51.100.15'}
+                  IP: {currentCustomer.usualIp || '198.51.100.15'}
                 </div>
               </div>
 
               <div className="bg-[#151922] p-2.5 rounded-lg border border-slate-800 space-y-1">
                 <span className="text-[10px] text-neutral-400 uppercase">Established Normalcy:</span>
                 <div className="font-bold text-white">
-                  {currencySymbol}{currentCustomer.typicalSpendMin} – {currencySymbol}{currentCustomer.typicalSpendMax} {currentCustomer.currency}
+                  {formatCurrency(currentCustomer.typicalSpendMin || 5, currentCustomer.currency)} –{' '}
+                  {formatCurrency(currentCustomer.typicalSpendMax || 50, currentCustomer.currency)}
                 </div>
                 <div className="text-[9px] text-emerald-400 font-bold">
-                  {currentCustomer.historicalTxnCount || 200} Pre-Stored Baseline Txns in PostgreSQL
+                  {currentCustomer.historicalTxnCount ?? 0} Stored Records in PostgreSQL
                 </div>
               </div>
             </div>
 
-            {/* PREVIEW OF LAST 3 LEGITIMATE TRANSACTIONS IN DATABASE */}
             <div className="pt-2 border-t border-slate-800">
               <span className="text-[10px] text-neutral-400 uppercase block mb-1.5">
-                SAMPLE PRE-STORED TRANSACTIONS FROM DATABASE:
+                LAST 3 TRANSACTIONS IN DATABASE:
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {recentTransactions.length > 0 ? (
                   recentTransactions.map((tx) => (
-                    <div key={tx.id} className="bg-[#151922] p-2 rounded-lg border border-slate-800 flex items-center justify-between text-[11px]">
+                    <div
+                      key={tx.id}
+                      className="bg-[#151922] p-2 rounded-lg border border-slate-800 flex items-center justify-between text-[11px]"
+                    >
                       <div>
-                        <div className="font-bold text-white">{currencySymbol}{tx.amount} {tx.currency}</div>
+                        <div className="font-bold text-white">{formatCurrency(tx.amount, tx.currency)}</div>
                         <div className="text-[9px] text-neutral-400 truncate max-w-[120px]">{tx.merchantId}</div>
                       </div>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 font-bold border border-emerald-500/40">
+                      <span
+                        className={`text-[9px] px-1.5 py-0.5 rounded font-bold border ${
+                          tx.status === 'APPROVED'
+                            ? 'bg-emerald-950 text-emerald-400 border-emerald-500/40'
+                            : tx.status === 'REVIEW'
+                            ? 'bg-amber-950 text-amber-400 border-amber-500/40'
+                            : 'bg-rose-950 text-rose-400 border-rose-500/40'
+                        }`}
+                      >
                         {tx.status}
                       </span>
                     </div>
                   ))
                 ) : (
                   <div className="text-neutral-500 text-[11px] italic col-span-3">
-                    200+ historical baseline records loaded in database for {currentCustomer.name}.
+                    No transactions loaded from backend for {currentCustomer.name}.
                   </div>
                 )}
               </div>
@@ -657,22 +688,21 @@ export function TransactionSimulator() {
         )}
       </div>
 
-      {/* STEP 2: CHOOSE SITUATION (SCENARIO OR VELOCITY OPTION) */}
+      {/* STEP 2: CHOOSE SITUATION OR CUSTOMIZE PARAMETERS */}
       <div className="space-y-3 font-mono bg-[#1c222e]/60 p-4 rounded-xl border border-slate-800/80">
         <div className="flex items-center justify-between text-xs pb-1">
           <div className="flex items-center gap-2 text-white font-bold uppercase tracking-wider">
             <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[11px]">2</span>
-            <span>CHOOSE TRANSACTION SITUATION TO SIMULATE:</span>
+            <span>CHOOSE OR CUSTOMIZE TRANSACTION SITUATION:</span>
           </div>
           <span className="text-[10px] text-amber-400 font-bold flex items-center gap-1">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>1-CLICK NARRATIVE STORIES</span>
+            <span>{activeScenario === 'CUSTOM' ? 'CUSTOM PARAMETERS' : '1-CLICK SCENARIO PRESETS'}</span>
           </span>
         </div>
 
         {/* 5 Narrative Preset Story Buttons */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 text-xs">
-          {/* 1. Everyday Clean Purchase */}
           <button
             type="button"
             onClick={() => handleApplyScenario('CLEAN')}
@@ -687,12 +717,11 @@ export function TransactionSimulator() {
               <span className="font-bold text-white">01 Normal Purchase</span>
             </div>
             <p className="text-[10px] font-sans text-neutral-400">
-              Clean typical purchase on trusted device at local merchant.
+              Typical spend on registered device from home IP at retail merchant.
             </p>
-            <span className="text-[9px] mt-2 text-emerald-400 font-bold uppercase">Expected: ALLOW</span>
+            <span className="text-[9px] mt-2 text-emerald-400 font-bold uppercase">Tests: Baseline Normalcy</span>
           </button>
 
-          {/* 2. Midnight Account Takeover */}
           <button
             type="button"
             onClick={() => handleApplyScenario('ATO')}
@@ -707,12 +736,11 @@ export function TransactionSimulator() {
               <span className="font-bold text-white">02 Account Takeover</span>
             </div>
             <p className="text-[10px] font-sans text-neutral-400">
-              8.5× spend spike on an unrecognized device from Moscow IP.
+              7× spend spike on an unrecognized device from foreign proxy IP.
             </p>
-            <span className="text-[9px] mt-2 text-rose-400 font-bold uppercase">Expected: BLOCK</span>
+            <span className="text-[9px] mt-2 text-rose-400 font-bold uppercase">Tests: RULE_02 + 03 + 04</span>
           </button>
 
-          {/* 3. Velocity Attack (The Velocity Option) */}
           <button
             type="button"
             onClick={() => handleApplyScenario('VELOCITY')}
@@ -727,12 +755,11 @@ export function TransactionSimulator() {
               <span className="font-bold text-white">03 Velocity Burst</span>
             </div>
             <p className="text-[10px] font-sans text-neutral-400">
-              Bot storm: 6 rapid micro-charges in under 1 second.
+              Sends 6 rapid transactions for this persona to trigger Redis rate limit.
             </p>
-            <span className="text-[9px] mt-2 text-purple-400 font-bold uppercase">Redis ZSET Rate Limit</span>
+            <span className="text-[9px] mt-2 text-purple-400 font-bold uppercase">Tests: RULE_01 (Redis ZSET)</span>
           </button>
 
-          {/* 4. Watchlist Merchant */}
           <button
             type="button"
             onClick={() => handleApplyScenario('WATCHLIST')}
@@ -747,12 +774,11 @@ export function TransactionSimulator() {
               <span className="font-bold text-white">04 Watchlist Vendor</span>
             </div>
             <p className="text-[10px] font-sans text-neutral-400">
-              Checkout routed to sanctioned DarkMixer Escrow endpoint.
+              Normal spend routed to sanctioned DarkMixer Escrow (mer_black_1).
             </p>
-            <span className="text-[9px] mt-2 text-rose-400 font-bold uppercase">Expected: BLOCK</span>
+            <span className="text-[9px] mt-2 text-rose-400 font-bold uppercase">Tests: RULE_05 Blacklist</span>
           </button>
 
-          {/* 5. Syndicate Collusion Ring */}
           <button
             type="button"
             onClick={() => handleApplyScenario('COLLUSION')}
@@ -767,87 +793,140 @@ export function TransactionSimulator() {
               <span className="font-bold text-white">05 Fraud Ring</span>
             </div>
             <p className="text-[10px] font-sans text-neutral-400">
-              Shares physical burner hardware with a banned fraudster.
+              Uses shared burner hardware linked to a banned syndicate account.
             </p>
-            <span className="text-[9px] mt-2 text-cyan-400 font-bold uppercase">2-Hop BFS Graph</span>
+            <span className="text-[9px] mt-2 text-cyan-400 font-bold uppercase">Tests: RULE_07 (2-Hop BFS)</span>
           </button>
         </div>
 
-        {/* SIDE-BY-SIDE: "BASELINE NORMALCY VS. SIMULATED ATTEMPT" VISUAL DIFF */}
-        <div className="mt-3 bg-[#151922] border border-slate-800 rounded-xl p-3.5 space-y-2 text-xs">
+        {/* EDITABLE TRANSACTION PARAMETERS & SIDE-BY-SIDE DIFF */}
+        <div className="mt-3 bg-[#151922] border border-slate-800 rounded-xl p-3.5 space-y-3 text-xs">
           <div className="flex items-center justify-between border-b border-slate-800 pb-2">
             <span className="text-neutral-300 font-bold uppercase flex items-center gap-1.5">
               <SlidersHorizontal className="w-3.5 h-3.5 text-blue-400" />
-              <span>SIDE-BY-SIDE ANOMALY DIFF (BASELINE VS. INCOMING ATTEMPT):</span>
+              <span>INCOMING TRANSACTION PAYLOAD (BASELINE VS. ATTEMPT):</span>
             </span>
-            <span className="text-[10px] text-neutral-400">Visual Deviation Inspection</span>
+            <span className="text-[10px] text-neutral-400">Edit any field to test custom behavior</span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-2 pt-1">
-            {/* Amount Diff */}
-            <div className="bg-[#1c222e] p-2.5 rounded-lg border border-slate-800">
-              <span className="text-[10px] text-neutral-400 uppercase block">Transaction Amount</span>
-              <div className="mt-1 flex items-baseline justify-between">
-                <span className="text-neutral-400 font-sans text-[11px]">Normal: {currencySymbol}{currentCustomer.typicalSpendMax} max</span>
-                <span className={`font-mono font-bold ${amount > (currentCustomer.typicalSpendMax || 50) * 2.5 ? 'text-rose-400' : 'text-white'}`}>
-                  {currencySymbol}{amount}
-                </span>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-1">
+            {/* Amount Input & Diff */}
+            <div className="bg-[#1c222e] p-2.5 rounded-lg border border-slate-800 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label htmlFor="sim-amount-input" className="text-[10px] text-neutral-400 uppercase">
+                  Amount ({currentCustomer.currency})
+                </label>
+                <span className="text-[10px] text-neutral-400 font-sans">Max: {formatCurrency(maxSpend, currentCustomer.currency)}</span>
               </div>
-              {amount > (currentCustomer.typicalSpendMax || 50) * 2.5 ? (
-                <span className="text-[9px] text-rose-400 font-bold uppercase block mt-1">🔴 Significant Spend Spike</span>
+              <input
+                id="sim-amount-input"
+                type="number"
+                min={0.01}
+                step="any"
+                value={amount}
+                onChange={(e) => {
+                  const val = Math.max(0, Number(e.target.value));
+                  setAmount(val);
+                  setActiveScenario('CUSTOM');
+                }}
+                className="w-full bg-[#151922] border border-slate-700 rounded px-2.5 py-1 text-xs font-mono font-bold text-white focus:outline-none focus:border-blue-500"
+              />
+              {amount > maxSpend * 2.5 ? (
+                <span className="text-[9px] text-rose-400 font-bold uppercase block">🔴 Extreme Spike (&gt;2.5× max)</span>
+              ) : amount > maxSpend ? (
+                <span className="text-[9px] text-amber-400 font-bold uppercase block">🟡 Elevated (&gt;typical max)</span>
               ) : (
-                <span className="text-[9px] text-emerald-400 font-bold uppercase block mt-1">🟢 Within Normal Range</span>
+                <span className="text-[9px] text-emerald-400 font-bold uppercase block">🟢 Within Normal Limit</span>
               )}
             </div>
 
-            {/* Device Diff */}
-            <div className="bg-[#1c222e] p-2.5 rounded-lg border border-slate-800">
-              <span className="text-[10px] text-neutral-400 uppercase block">Device Fingerprint</span>
-              <div className="mt-1 flex items-baseline justify-between text-[11px]">
-                <span className="text-neutral-400 font-sans truncate max-w-[90px]">{currentCustomer.primaryDevice}</span>
-                <span className={`font-bold ${isNewDevice ? 'text-amber-400' : isCollusionDevice ? 'text-cyan-400' : 'text-emerald-400'}`}>
-                  {isCollusionDevice ? 'Shared Tablet' : isNewDevice ? 'Unknown Linux' : 'Registered Device'}
-                </span>
-              </div>
-              {isCollusionDevice ? (
-                <span className="text-[9px] text-cyan-400 font-bold uppercase block mt-1">🕸️ Syndicate Shared HW</span>
-              ) : isNewDevice ? (
-                <span className="text-[9px] text-amber-400 font-bold uppercase block mt-1">⚠️ New Untrusted Device</span>
-              ) : (
-                <span className="text-[9px] text-emerald-400 font-bold uppercase block mt-1">🟢 Trusted Hardware</span>
-              )}
-            </div>
-
-            {/* Geolocation / IP Diff */}
-            <div className="bg-[#1c222e] p-2.5 rounded-lg border border-slate-800">
-              <span className="text-[10px] text-neutral-400 uppercase block">Geolocation / IP</span>
-              <div className="mt-1 flex items-baseline justify-between text-[11px]">
-                <span className="text-neutral-400 font-sans truncate max-w-[90px]">{currentCustomer.usualLocation?.split(',')[0]}</span>
-                <span className={`font-bold ${isLocationHop ? 'text-rose-400' : 'text-emerald-400'}`}>
-                  {isLocationHop ? 'Moscow (Proxy)' : 'Home Subnet'}
-                </span>
-              </div>
-              {isLocationHop ? (
-                <span className="text-[9px] text-rose-400 font-bold uppercase block mt-1">🔴 Impossible Geo Hop</span>
-              ) : (
-                <span className="text-[9px] text-emerald-400 font-bold uppercase block mt-1">🟢 Home IP Verified</span>
-              )}
-            </div>
-
-            {/* Merchant Diff */}
-            <div className="bg-[#1c222e] p-2.5 rounded-lg border border-slate-800">
-              <span className="text-[10px] text-neutral-400 uppercase block">Receiving Merchant</span>
-              <div className="mt-1 flex items-baseline justify-between text-[11px]">
-                <span className="text-neutral-400 font-sans">Verified Retail</span>
-                <span className={`font-bold truncate max-w-[100px] ${isBlacklistedMerchant ? 'text-rose-400' : 'text-emerald-400'}`}>
-                  {MERCHANTS.find((m) => m.id === selectedMerchantId)?.name.split(' ')[0] || selectedMerchantId}
-                </span>
-              </div>
+            {/* Merchant Selector */}
+            <div className="bg-[#1c222e] p-2.5 rounded-lg border border-slate-800 space-y-1.5">
+              <label htmlFor="sim-merchant-select" className="text-[10px] text-neutral-400 uppercase block">
+                Receiving Merchant
+              </label>
+              <select
+                id="sim-merchant-select"
+                value={isBlacklistedMerchant ? 'mer_black_1' : selectedMerchantId}
+                onChange={(e) => {
+                  const mId = e.target.value;
+                  setSelectedMerchantId(mId);
+                  setIsBlacklistedMerchant(mId === 'mer_black_1');
+                  setActiveScenario('CUSTOM');
+                }}
+                className="w-full bg-[#151922] border border-slate-700 rounded px-2 py-1 text-xs font-sans text-white focus:outline-none focus:border-blue-500"
+              >
+                {MERCHANTS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
               {isBlacklistedMerchant ? (
-                <span className="text-[9px] text-rose-400 font-bold uppercase block mt-1">⛔ Sanctioned Watchlist</span>
+                <span className="text-[9px] text-rose-400 font-bold uppercase block">⛔ Sanctioned Watchlist</span>
               ) : (
-                <span className="text-[9px] text-emerald-400 font-bold uppercase block mt-1">🟢 Merchant Cleared</span>
+                <span className="text-[9px] text-emerald-400 font-bold uppercase block">🟢 Verified Merchant</span>
               )}
+            </div>
+
+            {/* Device Selector */}
+            <div className="bg-[#1c222e] p-2.5 rounded-lg border border-slate-800 space-y-1.5">
+              <label htmlFor="sim-device-select" className="text-[10px] text-neutral-400 uppercase block">
+                Device Fingerprint
+              </label>
+              <select
+                id="sim-device-select"
+                value={isCollusionDevice ? 'COLLUSION' : isNewDevice ? 'NEW' : 'TRUSTED'}
+                onChange={(e) => {
+                  const mode = e.target.value;
+                  setIsNewDevice(mode === 'NEW');
+                  setIsCollusionDevice(mode === 'COLLUSION');
+                  setActiveScenario('CUSTOM');
+                }}
+                className="w-full bg-[#151922] border border-slate-700 rounded px-2 py-1 text-xs font-sans text-white focus:outline-none focus:border-blue-500"
+              >
+                <option value="TRUSTED">{currentCustomer.primaryDevice || 'Registered Device'} (Trusted)</option>
+                <option value="NEW">Unknown Linux VM (Untrusted)</option>
+                <option value="COLLUSION">Shared Syndicate Tablet (Fraud Ring)</option>
+              </select>
+              {isCollusionDevice ? (
+                <span className="text-[9px] text-cyan-400 font-bold uppercase block">🕸️ Syndicate Shared HW</span>
+              ) : isNewDevice ? (
+                <span className="text-[9px] text-amber-400 font-bold uppercase block">⚠️ New Untrusted Device</span>
+              ) : (
+                <span className="text-[9px] text-emerald-400 font-bold uppercase block">🟢 Trusted Hardware</span>
+              )}
+            </div>
+
+            {/* IP & Velocity Toggles */}
+            <div className="bg-[#1c222e] p-2.5 rounded-lg border border-slate-800 space-y-1.5">
+              <span className="text-[10px] text-neutral-400 uppercase block">Network &amp; Velocity</span>
+              <div className="flex flex-col gap-1.5 pt-0.5">
+                <label className="flex items-center gap-2 text-[11px] text-neutral-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isLocationHop}
+                    onChange={(e) => {
+                      setIsLocationHop(e.target.checked);
+                      setActiveScenario('CUSTOM');
+                    }}
+                    className="accent-rose-500"
+                  />
+                  <span>Foreign Proxy IP (185.220.101.5)</span>
+                </label>
+                <label className="flex items-center gap-2 text-[11px] text-neutral-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isVelocityBurst}
+                    onChange={(e) => {
+                      setIsVelocityBurst(e.target.checked);
+                      setActiveScenario('CUSTOM');
+                    }}
+                    className="accent-purple-500"
+                  />
+                  <span>6× Rapid Velocity Burst</span>
+                </label>
+              </div>
             </div>
           </div>
         </div>
@@ -858,10 +937,12 @@ export function TransactionSimulator() {
             <div className="flex items-center justify-between text-xs">
               <span className="text-purple-300 font-bold flex items-center gap-2">
                 <RotateCw className="w-3.5 h-3.5 animate-spin" />
-                <span>EXECUTING REDIS SLIDING WINDOW BURST [{burstProgress.current}/{burstProgress.total}]</span>
+                <span>
+                  EXECUTING REDIS SLIDING WINDOW BURST [{burstProgress.current}/{burstProgress.total}]
+                </span>
               </span>
               <span className={`text-[10px] font-bold ${burstProgress.fired ? 'text-rose-400' : 'text-emerald-400'}`}>
-                {burstProgress.fired ? '⚠️ THRESHOLD LIMIT BREACHED (RULE_01 FIRED)' : 'UNDER RATE LIMIT (PASS)'}
+                {burstProgress.fired ? '⚠️ THRESHOLD BREACHED (RULE_01 FIRED)' : 'UNDER RATE LIMIT'}
               </span>
             </div>
             <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
@@ -869,33 +950,6 @@ export function TransactionSimulator() {
                 style={{ width: `${(burstProgress.current / burstProgress.total) * 100}%` }}
                 className={`h-full transition-all duration-150 ${burstProgress.fired ? 'bg-rose-500' : 'bg-purple-500'}`}
               />
-            </div>
-          </div>
-        )}
-
-        {/* SLOW-MOTION PIPELINE INSPECTOR ANIMATION */}
-        {inspectorMode && inspectorStep > 0 && (
-          <div className="bg-[#151922] border border-purple-500/60 rounded-xl p-3 text-xs space-y-2">
-            <div className="flex items-center justify-between text-purple-300 font-bold">
-              <span>PIPELINE EXECUTION INSPECTOR:</span>
-              <span>STAGE {inspectorStep} OF 5</span>
-            </div>
-            <div className="grid grid-cols-5 gap-1.5 text-[10px] text-center">
-              <div className={`p-1.5 rounded ${inspectorStep >= 1 ? 'bg-blue-600 text-white font-bold' : 'bg-slate-800 text-neutral-500'}`}>
-                1. Mutex Lock
-              </div>
-              <div className={`p-1.5 rounded ${inspectorStep >= 2 ? 'bg-blue-600 text-white font-bold' : 'bg-slate-800 text-neutral-500'}`}>
-                2. Redis Velocity
-              </div>
-              <div className={`p-1.5 rounded ${inspectorStep >= 3 ? 'bg-blue-600 text-white font-bold' : 'bg-slate-800 text-neutral-500'}`}>
-                3. Device / IP
-              </div>
-              <div className={`p-1.5 rounded ${inspectorStep >= 4 ? 'bg-blue-600 text-white font-bold' : 'bg-slate-800 text-neutral-500'}`}>
-                4. Graph BFS
-              </div>
-              <div className={`p-1.5 rounded ${inspectorStep >= 5 ? 'bg-emerald-600 text-white font-bold' : 'bg-slate-800 text-neutral-500'}`}>
-                5. Decision Emit
-              </div>
             </div>
           </div>
         )}
@@ -913,7 +967,13 @@ export function TransactionSimulator() {
               <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 font-bold border border-emerald-500/40">
                 ⚡ {lastResult.evaluationTimeMs}ms Engine Latency
               </span>
-              <span className="text-[10px] text-neutral-400">SLA &lt;50ms Met</span>
+              {lastResult.evaluationTimeMs < 50 ? (
+                <span className="text-[10px] text-emerald-400 font-bold">SLA &lt;50ms MET ✓</span>
+              ) : (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 font-bold border border-rose-500/50">
+                  SLA &gt;50ms MISSED
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -921,59 +981,110 @@ export function TransactionSimulator() {
         {/* DECISION SUMMARY BANNER & SCORE GAUGE */}
         {lastResult ? (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-            {/* Large Verdict Box (8 Cols) */}
-            <div className={`lg:col-span-8 p-5 rounded-xl border flex flex-col justify-between ${
-              lastResult.decision === 'ALLOW'
-                ? 'bg-emerald-950/40 border-emerald-500/60 shadow-lg shadow-emerald-950/40'
-                : lastResult.decision === 'REVIEW'
-                ? 'bg-amber-950/40 border-amber-500/60 shadow-lg shadow-amber-950/40'
-                : 'bg-rose-950/40 border-rose-500/60 shadow-lg shadow-rose-950/40'
-            }`}>
+            {/* Large Verdict Box */}
+            <div
+              className={`lg:col-span-8 p-5 rounded-xl border flex flex-col justify-between ${
+                engineVerdict === 'ALLOW'
+                  ? 'bg-emerald-950/40 border-emerald-500/60 shadow-lg shadow-emerald-950/40'
+                  : engineVerdict === 'REVIEW'
+                  ? 'bg-amber-950/40 border-amber-500/60 shadow-lg shadow-amber-950/40'
+                  : 'bg-rose-950/40 border-rose-500/60 shadow-lg shadow-rose-950/40'
+              }`}
+            >
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">VERDICT ISSUED:</span>
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">
+                    BACKEND ENGINE VERDICT:
+                  </span>
                   <div className="flex items-center gap-3">
-                    <span className={`text-3xl font-black uppercase tracking-wider ${
-                      lastResult.decision === 'ALLOW' ? 'text-emerald-400' :
-                      lastResult.decision === 'REVIEW' ? 'text-amber-400' : 'text-rose-400'
-                    }`}>
-                      {lastResult.decision}
+                    <span
+                      className={`text-3xl font-black uppercase tracking-wider ${
+                        engineVerdict === 'ALLOW'
+                          ? 'text-emerald-400'
+                          : engineVerdict === 'REVIEW'
+                          ? 'text-amber-400'
+                          : 'text-rose-400'
+                      }`}
+                    >
+                      {engineVerdict}
                     </span>
-                    <span className={`text-xs px-2 py-1 rounded font-bold uppercase ${
-                      lastResult.decision === 'ALLOW' ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-500' :
-                      lastResult.decision === 'REVIEW' ? 'bg-amber-900/60 text-amber-300 border border-amber-500' :
-                      'bg-rose-900/60 text-rose-300 border border-rose-500'
-                    }`}>
-                      {lastResult.decision === 'ALLOW' ? 'Clean Checkout Approved' : lastResult.decision === 'REVIEW' ? 'Held for Manual Analyst Review' : 'Fraud Intercepted'}
+                    <span
+                      className={`text-xs px-2.5 py-1 rounded font-bold uppercase ${
+                        engineVerdict === 'ALLOW'
+                          ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-500'
+                          : engineVerdict === 'REVIEW'
+                          ? 'bg-amber-900/60 text-amber-300 border border-amber-500'
+                          : 'bg-rose-900/60 text-rose-300 border border-rose-500'
+                      }`}
+                    >
+                      {engineVerdict === 'ALLOW'
+                        ? 'Clean Checkout Approved'
+                        : engineVerdict === 'REVIEW'
+                        ? 'Held for Manual Analyst Review'
+                        : 'Fraud Intercepted'}
                     </span>
                   </div>
                 </div>
 
                 <div className="text-right">
                   <span className="text-[10px] text-neutral-400 uppercase">Transaction ID:</span>
-                  <div className="text-xs font-bold text-cyan-300">{lastResult.transactionId}</div>
-                  <div className="text-[10px] text-neutral-400">{lastResult.timestamp?.split('T')[0] || 'Today'}</div>
+                  <div className="text-xs font-bold text-cyan-300 font-mono">{lastResult.transactionId}</div>
+                  <div className="text-[10px] text-neutral-400 mt-0.5">Evaluated in {lastResult.evaluationTimeMs}ms</div>
                 </div>
               </div>
 
-              {/* AI COPILOT REASONING PARAGRAPH */}
-              <div className="mt-4 p-3 rounded-lg bg-[#151922]/80 border border-slate-800 text-xs text-neutral-300 leading-relaxed font-sans">
+              {/* POINTS BREAKDOWN PILL */}
+              <div className="mt-3 flex items-center gap-2 flex-wrap text-[11px]">
+                <span className="text-neutral-400">Score Composition:</span>
+                {ruleEvaluationMatrix.filter((r) => r.triggered).length === 0 ? (
+                  <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 font-bold border border-emerald-500/40">
+                    0 Rules Triggered (+0 pts)
+                  </span>
+                ) : (
+                  ruleEvaluationMatrix
+                    .filter((r) => r.triggered)
+                    .map((r) => (
+                      <span
+                        key={r.ruleId}
+                        className="px-2 py-0.5 rounded bg-slate-800 text-white font-bold border border-slate-700"
+                      >
+                        {r.ruleId}: +{r.scoreContribution} pts
+                      </span>
+                    ))
+                )}
+                {rawScoreSum > 100 && (
+                  <span className="px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-500 font-bold">
+                    Capped at 100 (Raw: {rawScoreSum} pts)
+                  </span>
+                )}
+              </div>
+
+              {/* REAL ENGINE SUMMARY / GEMINI REASONING */}
+              <div className="mt-3 p-3 rounded-lg bg-[#151922]/80 border border-slate-800 text-xs text-neutral-300 leading-relaxed font-sans">
                 <div className="flex items-center gap-1.5 text-cyan-400 font-mono font-bold text-[10px] uppercase mb-1">
                   <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>AI Risk Copilot Reasoning:</span>
+                  <span>{lastResult.geminiReasoning ? 'Gemini AI Copilot Reasoning:' : 'Rule Engine Decision Summary:'}</span>
                 </div>
-                {lastResult.geminiReasoning ||
-                  (lastResult.decision === 'ALLOW'
-                    ? `Transaction of ${currencySymbol}${amount} for ${currentCustomer.name} conforms to customer's historical baseline profile. Device fingerprint, geolocation, and velocity are verified clean.`
-                    : lastResult.decision === 'REVIEW'
-                    ? `Transaction exhibits moderate risk signals (${lastResult.finalScore} pts). Routed to analyst queue for human inspection before settlement.`
-                    : `Transaction intercepted with an aggregate penalty of ${lastResult.finalScore} pts. High-confidence fraud detected due to severe deviation from account history.`)}
+                {lastResult.geminiReasoning ? (
+                  <p>{lastResult.geminiReasoning}</p>
+                ) : ruleEvaluationMatrix.some((r) => r.triggered) ? (
+                  <p>
+                    {ruleEvaluationMatrix
+                      .filter((r) => r.triggered)
+                      .map((r) => r.reason)
+                      .join(' • ')}
+                  </p>
+                ) : (
+                  <p>
+                    All {ruleEvaluationMatrix.length} active fraud detection strategies passed cleanly for {currentCustomer.name} with 0 risk penalty.
+                  </p>
+                )}
               </div>
             </div>
 
-            {/* Radial Score Gauge (4 Cols) */}
+            {/* Radial Score Gauge */}
             <div className="lg:col-span-4 bg-[#1c222e] border border-slate-800 p-4 rounded-xl flex flex-col items-center justify-center">
-              <span className="text-[10px] text-neutral-400 uppercase mb-1">AGGREGATE RISK SCORE</span>
+              <span className="text-[10px] text-neutral-400 uppercase mb-1 font-bold">AGGREGATE RISK SCORE</span>
               <div className="relative w-44 h-24 flex items-end justify-center">
                 <svg className="w-44 h-24 overflow-visible" viewBox="0 0 160 90">
                   <path d="M 15 80 A 65 65 0 0 1 145 80" fill="none" stroke="#11141a" strokeWidth="12" strokeLinecap="round" />
@@ -982,15 +1093,24 @@ export function TransactionSimulator() {
                   <path d="M 100 28 A 65 65 0 0 1 145 80" fill="none" stroke="#f43f5e" strokeWidth="10" strokeLinecap="round" opacity="0.8" />
                 </svg>
                 <div className="absolute bottom-0 flex flex-col items-center">
-                  <span className={`text-3xl font-black font-mono ${
-                    displayedScore < 30 ? 'text-emerald-400' : displayedScore < 70 ? 'text-amber-400' : 'text-rose-400'
-                  }`}>
+                  <span
+                    className={`text-3xl font-black font-mono ${
+                      displayedScore < 30 ? 'text-emerald-400' : displayedScore < 70 ? 'text-amber-400' : 'text-rose-400'
+                    }`}
+                  >
                     {displayedScore}
                   </span>
                   <span className="text-[10px] font-mono text-neutral-400">/ 100 PTS</span>
                 </div>
               </div>
-              <div className="text-[10px] text-neutral-400 mt-2 text-center font-sans">
+
+              <div className="text-[11px] font-mono mt-2 text-center">
+                <span className="text-white font-bold">{engineScore} / 100</span>
+                {rawScoreSum > 100 && (
+                  <span className="text-amber-400 text-[10px] block">Raw: {rawScoreSum} pts (capped at 100)</span>
+                )}
+              </div>
+              <div className="text-[9px] text-neutral-400 mt-1 text-center font-sans">
                 &lt;30 ALLOW • 30–69 REVIEW • &ge;70 BLOCK
               </div>
             </div>
@@ -1000,45 +1120,55 @@ export function TransactionSimulator() {
             <Activity className="w-8 h-8 text-neutral-500 mx-auto animate-pulse" />
             <div className="text-white font-bold text-sm">DECISION PIPELINE STANDBY</div>
             <p className="text-xs text-neutral-400 font-sans max-w-md mx-auto">
-              Select a customer persona above and choose a situation, then click &apos;SIMULATE TRANSACTION&apos; to run the real-time scoring engine.
+              Select a customer persona above and choose or customize a situation, then click &apos;SIMULATE TRANSACTION&apos; to run the real-time backend scoring engine.
             </p>
           </div>
         )}
 
-        {/* THE COMPLETE RULE-BY-RULE EXPLAINABILITY MATRIX (ALL 7 RULES) */}
+        {/* REAL BACKEND RULE MATRIX BREAKDOWN */}
         {lastResult && (
           <div className="bg-[#1c222e] border border-slate-800 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <span className="text-xs font-bold text-white uppercase flex items-center gap-1.5">
                 <FileText className="w-4 h-4 text-cyan-400" />
-                <span>PRODUCTION RULE MATRIX BREAKDOWN (7 STRATEGIES EVALUATED):</span>
+                <span>PRODUCTION RULE MATRIX BREAKDOWN ({ruleEvaluationMatrix.length} ACTIVE RULES EVALUATED):</span>
               </span>
-              <span className="text-[10px] text-neutral-400">
-                {ruleEvaluationMatrix.filter((r) => r.triggered).length} of 7 Rules Triggered
+              <span className="text-[10px] text-neutral-300 font-bold">
+                {ruleEvaluationMatrix.filter((r) => r.triggered).length} of {ruleEvaluationMatrix.length} Rules Triggered
               </span>
             </div>
 
             <div className="divide-y divide-slate-800/80">
               {ruleEvaluationMatrix.map((rule) => (
-                <div key={rule.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div
+                  key={rule.ruleId}
+                  className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                >
                   <div className="flex items-start gap-2.5">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold shrink-0 mt-0.5 ${
-                      rule.triggered ? 'bg-rose-950 text-rose-400 border border-rose-500/50' : 'bg-emerald-950 text-emerald-400 border border-emerald-500/50'
-                    }`}>
-                      {rule.triggered ? `+${rule.defaultWeight} PTS` : '+0 PTS'}
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold shrink-0 mt-0.5 ${
+                        rule.triggered
+                          ? 'bg-rose-950 text-rose-300 border border-rose-500/50'
+                          : 'bg-emerald-950 text-emerald-300 border border-emerald-500/50'
+                      }`}
+                    >
+                      {rule.triggered ? `+${rule.scoreContribution} PTS` : '+0 PTS'}
                     </span>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-white">{rule.id}: {rule.name}</span>
-                        <span className="text-[10px] text-neutral-400 font-sans">({rule.metric})</span>
+                      <div className="font-bold text-white">
+                        {rule.ruleId}: {rule.ruleName}
                       </div>
                       <p className="text-[11px] text-neutral-300 font-sans mt-0.5">{rule.reason}</p>
                     </div>
                   </div>
 
-                  <span className={`text-[10px] font-bold uppercase shrink-0 self-start sm:self-auto px-2 py-0.5 rounded ${
-                    rule.triggered ? 'text-rose-400 bg-rose-950/60' : 'text-emerald-400 bg-emerald-950/60'
-                  }`}>
+                  <span
+                    className={`text-[10px] font-bold uppercase shrink-0 self-start sm:self-auto px-2 py-0.5 rounded ${
+                      rule.triggered
+                        ? 'text-rose-300 bg-rose-950 border border-rose-600/50'
+                        : 'text-emerald-300 bg-emerald-950 border border-emerald-600/50'
+                    }`}
+                  >
                     {rule.triggered ? '🔴 TRIGGERED' : '🟢 CLEARED'}
                   </span>
                 </div>
@@ -1047,76 +1177,48 @@ export function TransactionSimulator() {
           </div>
         )}
 
-        {/* 2-HOP GRAPH COLLUSION POPUP (WHEN RULE_07 OR PERSONA 5 IS ACTIVE) */}
-        {lastResult && (isCollusionDevice || selectedCustomerId === 'usr_viktor') && (
+        {/* REAL 2-HOP GRAPH COLLUSION EVIDENCE (ONLY WHEN RULE_07 ACTUALLY TRIGGERED) */}
+        {lastResult && syndicateGraph?.syndicateAnalysis?.syndicateDetected && (
           <div className="bg-[#1c222e] border border-cyan-500/50 rounded-xl p-4 space-y-2">
             <div className="flex items-center justify-between text-xs text-cyan-300 font-bold">
               <span className="flex items-center gap-1.5">
                 <Network className="w-4 h-4 text-cyan-400" />
-                <span>2-HOP BFS GRAPH TRAVERSAL SYNDICATE MAP:</span>
+                <span>2-HOP BFS GRAPH TRAVERSAL SYNDICATE EVIDENCE:</span>
               </span>
-              <span className="text-[10px] text-rose-400 font-bold uppercase">COLLUSION DETECTED (RULE_07)</span>
+              <span className="text-[10px] text-rose-400 font-bold uppercase">
+                {syndicateGraph.syndicateAnalysis.degreesOfSeparation}-HOP COLLUSION DETECTED (RULE_07)
+              </span>
             </div>
             <div className="p-3 bg-[#151922] rounded-lg border border-slate-800 flex items-center justify-center gap-3 text-xs flex-wrap">
               <span className="px-2.5 py-1 rounded bg-blue-950 text-blue-300 border border-blue-500/40 font-bold">
-                User: {currentCustomer.name}
+                User: {currentCustomer.id}
               </span>
               <ArrowRight className="w-3.5 h-3.5 text-neutral-500" />
               <span className="px-2.5 py-1 rounded bg-amber-950 text-amber-300 border border-amber-500/40 font-bold">
-                Hardware: fp_shared_syndicate_ipad
+                {syndicateGraph.syndicateAnalysis.sharedEntityType || 'Shared'}: {syndicateGraph.syndicateAnalysis.sharedEntityId}
               </span>
               <ArrowRight className="w-3.5 h-3.5 text-neutral-500" />
               <span className="px-2.5 py-1 rounded bg-rose-950 text-rose-300 border border-rose-500/40 font-bold">
-                Banned Kingpin: usr_syndicate_banned_99 (BLOCKED)
+                Blocked Node: {syndicateGraph.syndicateAnalysis.connectedBlockedUserId}
               </span>
-            </div>
-          </div>
-        )}
-
-        {/* INTERACTIVE SENSITIVITY PLAYGROUND ("WHAT IF?" SPEND SLIDER) */}
-        {lastResult && (
-          <div className="bg-[#1c222e] border border-slate-800 rounded-xl p-3.5 space-y-2 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-neutral-300 font-bold uppercase flex items-center gap-1.5">
-                <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400" />
-                <span>SENSITIVITY PLAYGROUND: &quot;WHAT IF SPEND WAS DIFFERENT?&quot;</span>
-              </span>
-              <span className="text-white font-bold">{currencySymbol}{sensitivityAmount.toFixed(2)}</span>
-            </div>
-            <input
-              type="range"
-              min={Math.max(5, (currentCustomer.typicalSpendMin || 10) / 2)}
-              max={(currentCustomer.typicalSpendMax || 100) * 8}
-              step={5}
-              value={sensitivityAmount}
-              onChange={(e) => {
-                const val = Number(e.target.value);
-                setSensitivityAmount(val);
-                setAmount(val);
-              }}
-              className="w-full accent-blue-500 cursor-pointer"
-            />
-            <div className="flex justify-between text-[10px] text-neutral-400 font-sans">
-              <span>Typical Min: {currencySymbol}{currentCustomer.typicalSpendMin}</span>
-              <span>Typical Max: {currencySymbol}{currentCustomer.typicalSpendMax}</span>
-              <span>8× Deviation: {currencySymbol}{(currentCustomer.typicalSpendMax || 50) * 8}</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* GLOBAL ACTIONS: SIMULATE & EXPORT */}
+      {/* GLOBAL ACTIONS: SIMULATE, RESET & EXPORT */}
       <div className="pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 font-mono">
-        <button
-          type="button"
-          onClick={() => handleSelectCustomer(selectedCustomerId)}
-          className="px-4 py-2.5 rounded-lg bg-[#1c222e] hover:bg-slate-700 text-neutral-300 border border-slate-700/80 text-xs font-bold transition-colors flex items-center gap-2"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          <span>RESET SITUATION</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => handleSelectCustomer(selectedCustomerId)}
+            className="px-4 py-2.5 rounded-lg bg-[#1c222e] hover:bg-slate-700 text-neutral-300 border border-slate-700/80 text-xs font-bold transition-colors flex items-center gap-2"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>RESET SITUATION</span>
+          </button>
+        </div>
 
-        {/* Big Cobalt Blue Primary Simulate Button */}
         <button
           type="button"
           disabled={loading || bursting}

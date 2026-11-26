@@ -110,7 +110,7 @@ export function ReviewQueuePanel() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {items.map((item) => {
             const isResolving = resolvingId === item.id;
-            const currencySymbol = item.currency === 'USD' ? '$' : '₹';
+            const currencySymbol = item.currency === 'USD' ? '$' : item.currency === 'GBP' ? '£' : item.currency === 'EUR' ? '€' : '₹';
 
             return (
               <div
