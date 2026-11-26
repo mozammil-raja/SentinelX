@@ -203,7 +203,7 @@ public class DatabaseSeeder implements CommandLineRunner {
     }
 
     private void seedSingleDevice(String deviceId, String userId, String fingerprint, String ip, String os, String browser, boolean trusted) {
-        if (!deviceRepository.existsById(deviceId)) {
+        if (!deviceRepository.existsById(deviceId) && deviceRepository.findByUserIdAndFingerprint(userId, fingerprint).isEmpty()) {
             User user = userRepository.findById(userId).orElse(null);
             if (user != null) {
                 Device dev = Device.builder()

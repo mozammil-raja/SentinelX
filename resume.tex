@@ -1,0 +1,152 @@
+%-------------------------
+% Resume in LaTeX
+% Author : Md Mozammil Raja
+% Targeted Role: Java Developer / Backend Software Engineer / SDE-1
+% License : MIT
+%------------------------
+
+\documentclass[letterpaper,10.5pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{charter}
+\usepackage{geometry}
+
+% High-impact single-page geometry
+\geometry{letterpaper, margin=0.48in, top=0.48in, bottom=0.48in}
+
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% URL style
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting
+\titleformat{\section}{
+  \vspace{-5pt}\scshape\raggedright\large\bfseries
+}{}{0em}{}[\color{black}\titlerule \vspace{-3pt}]
+
+% Custom commands
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-1.5pt}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-1.5pt}\item
+    \begin{tabular*}{0.99\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{-5pt}
+}
+
+\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}[leftmargin=0.15in]}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-3pt}}
+
+%-------------------------------------------
+%%%%%%  RESUME STARTS HERE  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+
+%----------HEADING----------
+\begin{center}
+    {\Huge \scshape Md Mozammil Raja} \\ \vspace{3pt}
+    \small New Delhi, India \ $|$ \ 
+    \href{tel:+918881317423}{+91 88813 17423} \ $|$ \ 
+    \href{mailto:mozammil.mr@gmail.com}{mozammil.mr@gmail.com} \ $|$ \ 
+    \href{https://linkedin.com/in/mozammil27}{linkedin.com/in/mozammil27} \ $|$ \ 
+    \href{https://github.com/mozammil-raja}{github.com/mozammil-raja}
+\end{center}
+
+%-----------EDUCATION-----------
+\section{Education}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {Jamia Millia Islamia}{New Delhi, India}
+      {Master of Computer Applications (MCA)}{2025 -- 2027}
+    \resumeSubheading
+      {Aligarh Muslim University}{Aligarh, India}
+      {Bachelor of Science in Computer Applications \normalfont{(CGPA: 7.99 / 10.0)}}{2022 -- 2025}
+  \resumeSubHeadingListEnd
+
+%-----------TECHNICAL SKILLS-----------
+\section{Technical Skills}
+ \begin{itemize}[leftmargin=0.15in, label={}]
+    \small{\item{
+     \textbf{Languages}{: Java (Core Java, Java 21, Collections, Streams, Multithreading, OOP), Python, SQL} \\ \vspace{1pt}
+     \textbf{Java \& Backend Ecosystem}{: Spring Boot 3, Spring Data JPA, Hibernate, RESTful APIs, MVC Architecture} \\ \vspace{1pt}
+     \textbf{Databases \& In-Memory}{: PostgreSQL, MySQL, Redis (Caching, Key-Value), Supabase} \\ \vspace{1pt}
+     \textbf{DevOps, Cloud \& Tools}{: Git, GitHub, Docker (Containerization), Linux/Bash, Maven, Postman, Railway, Vercel} \\ \vspace{1pt}
+     \textbf{Developer Productivity \& IDEs}{: IntelliJ IDEA, VS Code, GitHub Copilot, Prompt Engineering} \\ \vspace{1pt}
+     \textbf{Core CS Competencies}{: Data Structures \& Algorithms (DSA), System Design, Distributed Locking, Idempotency, Concurrency}
+    }}
+ \end{itemize}
+ \vspace{-10pt}
+
+%-----------PROFESSIONAL EXPERIENCE-----------
+\section{Professional Experience}
+  \resumeSubHeadingListStart
+
+    \resumeSubheading
+      {Software Development Intern}{Mar 2026 -- Aug 2026}
+      {PuraFarms}{Aligarh, India}
+      \resumeItemListStart
+        \resumeItem{Architected and delivered backend services and transactional workflows for a production subscription commerce SaaS platform, scaling subscription lifecycles, inventory tracking, and billing pipelines.}
+        \resumeItem{Engineered event-driven backend microservices integrating the WhatsApp Business API with webhook verification, automating conversational ordering, instant payment confirmation, and notification delivery.}
+        \resumeItem{Developed robust background task scheduling services to manage automated recurring subscription renewals, daily delivery manifest generation, and dynamic customer reminder dispatches.}
+        \resumeItem{Implemented secure Role-Based Access Control (RBAC) and modular administrative APIs, and optimized complex relational PostgreSQL database queries, reducing API response times by 35\%.}
+        \resumeItem{Maintained production deployments, release automation, and database migrations across Railway and Vercel infrastructure, ensuring 99.9\% uptime and proactive error resolution via centralized logging.}
+      \resumeItemListEnd
+
+  \resumeSubHeadingListEnd
+
+%-----------PROJECTS-----------
+\section{Featured Projects}
+    \resumeSubHeadingListStart
+
+      \resumeSubheading
+        {SentinelX -- Real-Time Financial Fraud \& Risk Decisioning Platform}{\href{https://github.com/mozammil-raja/SentinelX}{GitHub Repository}}
+        {Java 21, Spring Boot 3, PostgreSQL 16, Redis 7, Lua, Next.js 16, Docker, JUnit}{2026}
+        \resumeItemListStart
+          \resumeItem{Architected an enterprise-grade financial risk decisioning engine evaluating transaction streams under a \textbf{$<$ 15ms} execution SLA to classify real-time \textbf{ALLOW}, \textbf{REVIEW}, and \textbf{BLOCK} risk verdicts.}
+          \resumeItem{Engineered a decoupled \textbf{Polymorphic Strategy Rule Engine} dynamically aggregating 7 risk signals (spending deviations against customer baselines, untrusted SHA-256 device fingerprints, rapid IP geo-hops, and merchant watchlists).}
+          \resumeItem{Implemented high-throughput velocity tracking using \textbf{Redis Sorted Sets (ZSET)} and atomic Lua scripts for $O(\log N)$ sliding-window aggregations across 5-minute rolling logs, backed by a resilient PostgreSQL fallback.}
+          \resumeItem{Enforced zero-double-charge guarantees using \textbf{Distributed Mutex Locks} and header-based \textbf{Idempotency Keys} (24h TTL), backed by a comprehensive test suite across unit, integration, and backtesting benchmarks.}
+        \resumeItemListEnd
+
+      \resumeSubheading
+        {Ocean Freight Data Quality \& Analytics Engine}{\href{https://github.com/mozammil-raja/ocean-freight-data-quality-analytics}{GitHub Repository}}
+        {Python, SQL, PostgreSQL, Pandas, NumPy, Data Pipelines, Automated Validation}{2026}
+        \resumeItemListStart
+          \resumeItem{Architected an end-to-end data quality pipeline processing heterogeneous maritime freight logs, container tracking metrics, and shipment manifest records across 200k+ rows.}
+          \resumeItem{Developed automated schema validation, anomaly detection, and quarantine workflows to identify invalid port codes, malformed bill-of-lading records, missing values, and inconsistent shipment data.}
+          \resumeItem{Designed optimized PostgreSQL SQL aggregation queries and indexing strategies to compute transit delay metrics, carrier ETA accuracy, and demurrage risk indicators.}
+          \resumeItem{Built automated data auditing scripts and modular analytical reporting workflows, cutting manual freight reconciliation overhead by 40\%.}
+        \resumeItemListEnd
+
+    \resumeSubHeadingListEnd
+
+\end{document}
